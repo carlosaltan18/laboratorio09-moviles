@@ -13,3 +13,16 @@
 .externalNativeBuild
 .cxx
 local.properties
+.chat/
+*.chat
+.copilot_history/
+.cursor/
+.cursor_history/
+.vscode/copilot.log
+codex_logs/
+codex_history.json
+.aichat/
+*.aichat
+.prompt_history/
+.aiprompts/
+.history/
