@@ -7,3 +7,4 @@ data class Chocolate(
     val description: String,
     val price: Double
 )
+
