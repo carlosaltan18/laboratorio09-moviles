@@ -83,7 +83,7 @@ fun ChocolateDetailScreen(
             }
             if (showTechnicalSheet) {
                 Text(
-                    "Origen del cacao y notas de elaboración detalladas de $chocolate.name.",
+                    "Origen del cacao y notas de elaboración detalladas de ${chocolate.name}.",
                     style = MaterialTheme.typography.bodySmall
                 )
             }

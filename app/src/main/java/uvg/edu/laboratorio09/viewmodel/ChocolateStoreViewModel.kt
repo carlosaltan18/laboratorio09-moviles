@@ -4,11 +4,11 @@ import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import uvg.edu.laboratorio09.model.Chocolate
 import uvg.edu.laboratorio09.model.ChocolateStoreUiState
 import uvg.edu.laboratorio09.model.Chocolatier
 
-/** Holds the single, initial definition of the store catalog. */
 class ChocolateStoreViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(
         ChocolateStoreUiState(
@@ -55,4 +55,16 @@ class ChocolateStoreViewModel : ViewModel() {
     )
 
     val uiState: StateFlow<ChocolateStoreUiState> = _uiState.asStateFlow()
+
+    // Publica un nuevo estado inmutable; es el único punto que modifica los favoritos.
+    fun toggleFavorite(chocolateId: String) {
+        _uiState.update { current ->
+            val updatedFavorites = if (chocolateId in current.favoriteChocolateIds) {
+                current.favoriteChocolateIds - chocolateId
+            } else {
+                current.favoriteChocolateIds + chocolateId
+            }
+            current.copy(favoriteChocolateIds = updatedFavorites)
+        }
+    }
 }
