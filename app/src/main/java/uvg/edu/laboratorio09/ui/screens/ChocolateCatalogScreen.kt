@@ -28,9 +28,9 @@ import uvg.edu.laboratorio09.model.Chocolate
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CatalogScreen(
-    chocolates: List<Chocolate>,
-    favoriteIds: Set<String>,
-    onChocolateSelected: (String) -> Unit,
+    products: List<Chocolate>,
+    favoriteProductIds: Set<String>,
+    onProductSelected: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -46,11 +46,11 @@ fun CatalogScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            chocolates.forEach { chocolate ->
+            products.forEach { chocolate ->
                 ChocolateCatalogItem(
                     chocolate = chocolate,
-                    isFavorite = favoriteIds.contains(chocolate.id),
-                    onClick = { onChocolateSelected(chocolate.id) },
+                    isFavorite = favoriteProductIds.contains(chocolate.id),
+                    onClick = { onProductSelected(chocolate.id) },
                     onToggleFavorite = { onToggleFavorite(chocolate.id) }
                 )
             }
