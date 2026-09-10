@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import uvg.edu.laboratorio09.model.Chocolate
+import uvg.edu.laboratorio09.model.toQuetzales
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,7 +77,7 @@ private fun ChocolateCatalogItem(
         ) {
             Column {
                 Text(chocolate.name, style = MaterialTheme.typography.titleMedium)
-                Text("Q%.2f".format(chocolate.price), style = MaterialTheme.typography.bodyMedium)
+                Text(chocolate.priceCents.toQuetzales(), style = MaterialTheme.typography.bodyMedium)
             }
             IconButton(onClick = onToggleFavorite) {
                 Icon(

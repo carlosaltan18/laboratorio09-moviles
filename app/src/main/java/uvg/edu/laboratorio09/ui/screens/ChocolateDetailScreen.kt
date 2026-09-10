@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import uvg.edu.laboratorio09.model.Chocolate
+import uvg.edu.laboratorio09.model.toQuetzales
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,7 +66,7 @@ fun ChocolateDetailScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(chocolate.name, style = MaterialTheme.typography.headlineSmall)
-            Text("Q%.2f".format(chocolate.price), style = MaterialTheme.typography.titleMedium)
+            Text(chocolate.priceCents.toQuetzales(), style = MaterialTheme.typography.titleMedium)
             Text(chocolate.description, style = MaterialTheme.typography.bodyMedium)
 
             Row(verticalAlignment = Alignment.CenterVertically) {

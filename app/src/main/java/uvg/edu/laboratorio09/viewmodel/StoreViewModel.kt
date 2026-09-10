@@ -5,31 +5,38 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import uvg.edu.laboratorio09.data.ChocolateCatalogFactory
 import uvg.edu.laboratorio09.model.Chocolate
 import uvg.edu.laboratorio09.model.Chocolatier
 import uvg.edu.laboratorio09.model.StoreUiState
 
-private val storeProducts = listOf(
+private val originalChocolates = listOf(
     Chocolate(
         id = "chocolate_01",
         chocolatierId = "chocolatier_01",
         name = "Chocolate Oscuro 70%",
         description = "Chocolate artesanal de cacao guatemalteco con sabor intenso y notas frutales.",
-        price = 45.00
+        priceCents = 4500,
+        stock = 0,
+        imageUrl = "https://picsum.photos/seed/chocolate-01/400/400"
     ),
     Chocolate(
         id = "chocolate_02",
         chocolatierId = "chocolatier_02",
         name = "Chocolate con Café",
         description = "Chocolate semiamargo combinado con café de Antigua Guatemala.",
-        price = 52.00
+        priceCents = 5200,
+        stock = 3,
+        imageUrl = "https://picsum.photos/seed/chocolate-02/400/400"
     ),
     Chocolate(
         id = "chocolate_03",
         chocolatierId = "chocolatier_01",
         name = "Chocolate con Cardamomo",
         description = "Chocolate con leche aromatizado con cardamomo de Alta Verapaz.",
-        price = 48.00
+        priceCents = 4800,
+        stock = 8,
+        imageUrl = "https://picsum.photos/seed/chocolate-03/400/400"
     )
 )
 
@@ -52,9 +59,24 @@ private val associatedProfiles = listOf(
 
 class StoreViewModel : ViewModel() {
 
+    private val initialCatalog = ChocolateCatalogFactory.createCatalog(
+        originalChocolates = originalChocolates,
+        chocolatierIds = associatedProfiles.map { it.id }
+    )
+
+    init {
+        val profileIds = associatedProfiles.map { it.id }.toSet()
+        check(initialCatalog.size == 500)
+        check(initialCatalog.map { it.id }.distinct().size == 500)
+        check(initialCatalog.all { it.priceCents > 0 })
+        check(initialCatalog.all { it.stock >= 0 })
+        check(initialCatalog.all { it.chocolatierId in profileIds })
+        check(initialCatalog.all { it.imageUrl.isNotBlank() })
+    }
+
     private val _uiState = MutableStateFlow(
         StoreUiState(
-            products = storeProducts,
+            products = initialCatalog,
             profiles = associatedProfiles
         )
     )

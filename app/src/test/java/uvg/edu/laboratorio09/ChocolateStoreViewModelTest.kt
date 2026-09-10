@@ -3,14 +3,14 @@ package uvg.edu.laboratorio09
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import uvg.edu.laboratorio09.viewmodel.ChocolateStoreViewModel
+import uvg.edu.laboratorio09.viewmodel.StoreViewModel
 
-class ChocolateStoreViewModelTest {
+class ChocolateCatalogTest {
     @Test
     fun catalogIsStableAndMeetsTheProductRequirements() {
-        val firstCatalog = ChocolateStoreViewModel().uiState.value.chocolates
-        val secondCatalog = ChocolateStoreViewModel().uiState.value.chocolates
-        val chocolatierIds = ChocolateStoreViewModel().uiState.value.chocolatiers.map { it.id }.toSet()
+        val firstCatalog = StoreViewModel().uiState.value.products
+        val secondCatalog = StoreViewModel().uiState.value.products
+        val chocolatierIds = StoreViewModel().uiState.value.profiles.map { it.id }.toSet()
 
         assertEquals(500, firstCatalog.size)
         assertEquals(500, firstCatalog.map { it.id }.distinct().size)
