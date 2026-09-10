@@ -12,4 +12,7 @@ data class Chocolate(
     val imageUrl: String
 )
 
+<<<<<<< HEAD
 fun Int.toQuetzales(): String = "Q%.2f".format(Locale.US, this / 100.0)
+=======
+>>>>>>> 4ecb191f5dedb306b34f24be8bc97c49dfed3d28
