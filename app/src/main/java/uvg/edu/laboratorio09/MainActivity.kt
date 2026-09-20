@@ -5,18 +5,20 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import uvg.edu.laboratorio09.navigation.StoreNavKey
-import uvg.edu.laboratorio09.ui.screens.CatalogScreen
+import uvg.edu.laboratorio09.ui.screens.ChocolateCatalogScreen
 import uvg.edu.laboratorio09.ui.screens.ChocolateDetailScreen
 import uvg.edu.laboratorio09.ui.screens.ChocolatierProfileScreen
 import uvg.edu.laboratorio09.ui.theme.Laboratorio09Theme
@@ -48,10 +50,10 @@ fun ChocolateStoreApp() {
         backStack = backStack,
         entryProvider = entryProvider {
             entry<StoreNavKey.Catalog> {
-                CatalogScreen(
-                    products = uiState.products,
-                    favoriteProductIds = uiState.favoriteProductIds,
-                    onProductSelected = { productId ->
+                ChocolateCatalogScreen(
+                    chocolates = uiState.products,
+                    favoriteIds = uiState.favoriteProductIds,
+                    onChocolateClick = { productId ->
                         backStack.add(StoreNavKey.Detail(productId))
                     },
                     onToggleFavorite = viewModel::toggleFavorite
@@ -97,9 +99,9 @@ fun ChocolateStoreApp() {
 @Composable
 private fun MissingDestination(message: String) {
     Box(
-        modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        androidx.compose.material3.Text(message)
+        Text(message)
     }
 }
