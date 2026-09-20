@@ -42,7 +42,6 @@ fun ChocolateCatalogScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Asignación de claves por ID para un scroll lazy óptimo
             items(items = chocolates, key = { it.id }) { chocolate ->
                 ProductCard(
                     chocolate = chocolate,
