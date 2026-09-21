@@ -8,6 +8,13 @@ import kotlinx.coroutines.flow.update
 import uvg.edu.laboratorio09.data.ChocolateCatalogFactory
 import uvg.edu.laboratorio09.model.Chocolate
 import uvg.edu.laboratorio09.model.Chocolatier
+import uvg.edu.laboratorio09.domain.addToOrder
+import uvg.edu.laboratorio09.domain.decreaseOrderLine
+import uvg.edu.laboratorio09.domain.lineSubtotalCents
+import uvg.edu.laboratorio09.domain.orderTotalCents
+import uvg.edu.laboratorio09.domain.removeOrderLine
+import uvg.edu.laboratorio09.model.OrderLine
+import uvg.edu.laboratorio09.model.OrderResult
 import uvg.edu.laboratorio09.model.StoreUiState
 
 private val originalChocolates = listOf(
@@ -82,6 +89,50 @@ class StoreViewModel : ViewModel() {
     )
 
     val uiState: StateFlow<StoreUiState> = _uiState.asStateFlow()
+
+    fun updateQuery(query: String) {
+        _uiState.update { it.copy(query = query) }
+    }
+
+    fun clearQuery() = updateQuery("")
+
+    fun clearOrderMessage() {
+        _uiState.update { it.copy(orderMessage = null) }
+    }
+
+    fun addProductToOrder(productId: String) {
+        _uiState.update { state ->
+            when (val result = addToOrder(state.products, state.orderLines, productId)) {
+                is OrderResult.Success -> state.withOrderLines(result.lines, result.message)
+                is OrderResult.Rejected -> state.copy(orderMessage = result.reason)
+            }
+        }
+    }
+
+    fun decreaseProduct(productId: String) {
+        _uiState.update { state ->
+            state.withOrderLines(decreaseOrderLine(state.orderLines, productId))
+        }
+    }
+
+    fun removeProduct(productId: String) {
+        _uiState.update { state ->
+            state.withOrderLines(removeOrderLine(state.orderLines, productId))
+        }
+    }
+
+    private fun StoreUiState.withOrderLines(
+        lines: List<OrderLine>,
+        message: String? = null
+    ): StoreUiState = copy(
+        orderLines = lines,
+        orderMessage = message,
+        orderSubtotalsCents = lines.associate { line ->
+            val product = products.first { it.id == line.productId }
+            line.productId to lineSubtotalCents(product, line)
+        },
+        orderTotalCents = orderTotalCents(products, lines)
+    )
 
     fun toggleFavorite(productId: String) {
         _uiState.update { currentState ->
