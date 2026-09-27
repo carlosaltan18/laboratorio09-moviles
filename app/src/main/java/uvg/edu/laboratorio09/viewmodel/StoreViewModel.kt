@@ -6,9 +6,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import uvg.edu.laboratorio09.data.ChocolateCatalogFactory
+import uvg.edu.laboratorio09.domain.revalidated
 import uvg.edu.laboratorio09.model.Chocolate
 import uvg.edu.laboratorio09.model.Chocolatier
 import uvg.edu.laboratorio09.model.CheckoutUiState
+import uvg.edu.laboratorio09.model.BillingType
+import uvg.edu.laboratorio09.model.PaymentMethod
 import uvg.edu.laboratorio09.domain.addToOrder
 import uvg.edu.laboratorio09.domain.decreaseOrderLine
 import uvg.edu.laboratorio09.domain.lineSubtotalCents
@@ -91,8 +94,52 @@ class StoreViewModel : ViewModel() {
 
     val uiState: StateFlow<StoreUiState> = _uiState.asStateFlow()
 
-    private val _checkoutUiState = MutableStateFlow(CheckoutUiState())
+    private val _checkoutUiState = MutableStateFlow(CheckoutUiState().revalidated())
     val checkoutUiState: StateFlow<CheckoutUiState> = _checkoutUiState.asStateFlow()
+
+    fun onFullNameChange(value: String) {
+        _checkoutUiState.update {
+            it.copy(fullName = value, fullNameTouched = true).revalidated()
+        }
+    }
+
+    fun onPhoneNumberChange(value: String) {
+        _checkoutUiState.update {
+            it.copy(phoneNumber = value, phoneNumberTouched = true).revalidated()
+        }
+    }
+
+    fun onNitChange(value: String) {
+        _checkoutUiState.update {
+            it.copy(nit = value, nitTouched = true).revalidated()
+        }
+    }
+
+    fun onBusinessNameChange(value: String) {
+        _checkoutUiState.update {
+            it.copy(businessName = value, businessNameTouched = true).revalidated()
+        }
+    }
+
+    fun onPaymentMethodChange(method: PaymentMethod) {
+        _checkoutUiState.update { it.copy(paymentMethod = method).revalidated() }
+    }
+
+    fun onBillingTypeChange(type: BillingType) {
+        _checkoutUiState.update { currentState ->
+            if (type == BillingType.CONSUMER_FINAL) {
+                currentState.copy(
+                    billingType = type,
+                    nitTouched = false,
+                    businessNameTouched = false,
+                    nitError = null,
+                    businessNameError = null
+                ).revalidated()
+            } else {
+                currentState.copy(billingType = type).revalidated()
+            }
+        }
+    }
 
     fun updateQuery(query: String) {
         _uiState.update { it.copy(query = query) }
