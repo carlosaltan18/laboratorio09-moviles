@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.update
 import uvg.edu.laboratorio09.data.ChocolateCatalogFactory
 import uvg.edu.laboratorio09.model.Chocolate
 import uvg.edu.laboratorio09.model.Chocolatier
+import uvg.edu.laboratorio09.model.CheckoutUiState
 import uvg.edu.laboratorio09.domain.addToOrder
 import uvg.edu.laboratorio09.domain.decreaseOrderLine
 import uvg.edu.laboratorio09.domain.lineSubtotalCents
@@ -89,6 +90,9 @@ class StoreViewModel : ViewModel() {
     )
 
     val uiState: StateFlow<StoreUiState> = _uiState.asStateFlow()
+
+    private val _checkoutUiState = MutableStateFlow(CheckoutUiState())
+    val checkoutUiState: StateFlow<CheckoutUiState> = _checkoutUiState.asStateFlow()
 
     fun updateQuery(query: String) {
         _uiState.update { it.copy(query = query) }
