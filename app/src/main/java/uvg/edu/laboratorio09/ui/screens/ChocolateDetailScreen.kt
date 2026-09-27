@@ -23,31 +23,43 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import uvg.edu.laboratorio09.model.Chocolate
+import uvg.edu.laboratorio09.model.toQuetzales
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChocolateDetailScreen(
     chocolate: Chocolate,
     isFavorite: Boolean,
+    quantityInOrder: Int,
+    orderUnitCount: Int,
+    orderMessage: String?,
+    onAddToOrder: () -> Unit,
+    onOrderClick: () -> Unit,
     onToggleFavorite: (String) -> Unit,
     onViewProfile: (String) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
 
-    var showTechnicalSheet by remember { mutableStateOf(false) }
+    var showTechnicalSheet by remember(chocolate.id) { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(chocolate.name) },
+                title = { Text("Detalle") },
+                actions = {
+                    TextButton(onClick = onOrderClick) { Text("Pedido · $orderUnitCount") }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar")
@@ -64,9 +76,19 @@ fun ChocolateDetailScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            ProductImage(chocolate)
             Text(chocolate.name, style = MaterialTheme.typography.headlineSmall)
-            Text("Q%.2f".format(chocolate.price), style = MaterialTheme.typography.titleMedium)
+            Text(chocolate.priceCents.toQuetzales(), style = MaterialTheme.typography.titleMedium)
             Text(chocolate.description, style = MaterialTheme.typography.bodyMedium)
+
+            Text("${chocolate.stock} disponibles · $quantityInOrder en el pedido")
+            Button(onClick = onAddToOrder) { Text("Agregar al pedido") }
+            if (orderMessage != null) {
+                Text(
+                    orderMessage,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                )
+            }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { onToggleFavorite(chocolate.id) }) {
@@ -88,7 +110,7 @@ fun ChocolateDetailScreen(
                 )
             }
 
-            Button(onClick = { onViewProfile(chocolate.chocolatierId) }) {
+            TextButton(onClick = { onViewProfile(chocolate.chocolatierId) }) {
                 Text("Ver chocolatero")
             }
         }
