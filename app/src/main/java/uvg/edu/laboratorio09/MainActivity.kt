@@ -31,6 +31,7 @@ import uvg.edu.laboratorio09.ui.screens.ChocolateCatalogScreen
 import uvg.edu.laboratorio09.ui.screens.ChocolateDetailScreen
 import uvg.edu.laboratorio09.ui.screens.ChocolatierProfileScreen
 import uvg.edu.laboratorio09.ui.screens.CheckoutScreen
+import uvg.edu.laboratorio09.ui.screens.OrderConfirmationScreen
 import uvg.edu.laboratorio09.ui.theme.Laboratorio09Theme
 import uvg.edu.laboratorio09.viewmodel.StoreViewModel
 
@@ -51,6 +52,7 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
     val viewModel: StoreViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val checkoutUiState by viewModel.checkoutUiState.collectAsStateWithLifecycle()
+    val orderReceipt by viewModel.orderReceipt.collectAsStateWithLifecycle()
     val backStack = rememberNavBackStack(StoreNavKey.Catalog)
 
     val gridState = rememberLazyGridState()
@@ -66,11 +68,20 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
         viewModel.clearOrderMessage()
         backStack.add(StoreNavKey.Order)
     }
+    val returnToCatalog: () -> Unit = {
+        while (backStack.size > 1) backStack.removeLastOrNull()
+    }
 
     NavDisplay(
         modifier = modifier,
         backStack = backStack,
-        onBack = { if (backStack.size > 1) backStack.removeLastOrNull() },
+        onBack = {
+            if (backStack.lastOrNull() == StoreNavKey.Confirmation) {
+                returnToCatalog()
+            } else if (backStack.size > 1) {
+                backStack.removeLastOrNull()
+            }
+        },
         // Adaptado de Android Developers: Animate between destinations (Navigation 3).
         transitionSpec = {
             slideInHorizontally(tween(250), initialOffsetX = { it }) togetherWith
@@ -138,9 +149,7 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
                     onDecrease = viewModel::decreaseProduct,
                     onRemove = viewModel::removeProduct,
                     onBack = { backStack.removeLastOrNull() },
-                    onCatalogClick = {
-                        while (backStack.size > 1) backStack.removeLastOrNull()
-                    },
+                    onCatalogClick = returnToCatalog,
                     onCheckoutClick = { backStack.add(StoreNavKey.Checkout) }
                 )
             }
@@ -155,9 +164,24 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
                     onNitChange = viewModel::onNitChange,
                     onBusinessNameChange = viewModel::onBusinessNameChange,
                     onPaymentMethodChange = viewModel::onPaymentMethodChange,
-                    onConfirm = { /* Persona 3 conectará confirmación, recibo y reseteo. */ },
+                    onConfirm = {
+                        if (viewModel.confirmOrder()) {
+                            backStack.add(StoreNavKey.Confirmation)
+                        }
+                    },
                     onBack = { backStack.removeLastOrNull() }
                 )
+            }
+            entry<StoreNavKey.Confirmation> {
+                val receipt = orderReceipt
+                if (receipt != null) {
+                    OrderConfirmationScreen(
+                        receipt = receipt,
+                        onReturnToCatalog = returnToCatalog
+                    )
+                } else {
+                    MissingDestination(message = "Recibo no encontrado")
+                }
             }
             entry<StoreNavKey.Profile> { key ->
                 val profile = uiState.profiles.find {
