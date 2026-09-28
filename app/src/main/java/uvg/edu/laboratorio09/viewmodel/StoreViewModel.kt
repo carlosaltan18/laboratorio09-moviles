@@ -18,6 +18,7 @@ import uvg.edu.laboratorio09.domain.lineSubtotalCents
 import uvg.edu.laboratorio09.domain.orderTotalCents
 import uvg.edu.laboratorio09.domain.removeOrderLine
 import uvg.edu.laboratorio09.model.OrderLine
+import uvg.edu.laboratorio09.model.OrderReceipt
 import uvg.edu.laboratorio09.model.OrderResult
 import uvg.edu.laboratorio09.model.StoreUiState
 
@@ -97,6 +98,11 @@ class StoreViewModel : ViewModel() {
     private val _checkoutUiState = MutableStateFlow(CheckoutUiState().revalidated())
     val checkoutUiState: StateFlow<CheckoutUiState> = _checkoutUiState.asStateFlow()
 
+    private val _orderReceipt = MutableStateFlow<OrderReceipt?>(null)
+    val orderReceipt: StateFlow<OrderReceipt?> = _orderReceipt.asStateFlow()
+
+    private var nextOrderNumber = 1
+
     fun onFullNameChange(value: String) {
         _checkoutUiState.update {
             it.copy(fullName = value, fullNameTouched = true).revalidated()
@@ -139,6 +145,43 @@ class StoreViewModel : ViewModel() {
                 currentState.copy(billingType = type).revalidated()
             }
         }
+    }
+
+    fun confirmOrder(): Boolean {
+        val currentCheckout = _checkoutUiState.value
+        val validatedCheckout = currentCheckout.revalidated().copy(
+            fullNameTouched = true,
+            phoneNumberTouched = true,
+            nitTouched = currentCheckout.billingType == BillingType.NIT,
+            businessNameTouched = currentCheckout.billingType == BillingType.NIT
+        )
+        _checkoutUiState.value = validatedCheckout
+
+        val currentOrder = _uiState.value
+        if (!validatedCheckout.isFormValid || currentOrder.totalOrderUnits == 0) {
+            return false
+        }
+
+        val folio = "#ORD-${nextOrderNumber.toString().padStart(5, '0')}"
+        nextOrderNumber += 1
+        _orderReceipt.value = OrderReceipt(
+            folio = folio,
+            customerName = validatedCheckout.fullName.trim(),
+            phoneNumber = validatedCheckout.phoneNumber.trim(),
+            billingType = validatedCheckout.billingType,
+            nit = validatedCheckout.nit.trim().takeIf {
+                validatedCheckout.billingType == BillingType.NIT
+            },
+            businessName = validatedCheckout.businessName.trim().takeIf {
+                validatedCheckout.billingType == BillingType.NIT
+            },
+            paymentMethod = validatedCheckout.paymentMethod,
+            totalCents = currentOrder.orderTotalCents
+        )
+
+        _uiState.update { it.withOrderLines(emptyList()) }
+        _checkoutUiState.value = CheckoutUiState().revalidated()
+        return true
     }
 
     fun updateQuery(query: String) {
