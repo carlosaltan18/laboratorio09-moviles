@@ -61,3 +61,32 @@ fun orderTotalCents(products: List<Chocolate>, lines: List<OrderLine>): Int =
         val product = products.find { it.id == line.productId } ?: return@sumOf 0
         lineSubtotalCents(product, line)
     }
+
+fun validateOrderAvailability(
+    products: List<Chocolate>,
+    lines: List<OrderLine>
+): String? {
+    if (lines.isEmpty()) return "El pedido está vacío."
+
+    lines.forEach { line ->
+        if (line.quantity <= 0) return "El pedido contiene una cantidad inválida."
+        val product = products.find { it.id == line.productId }
+            ?: return "Uno de los productos ya no existe."
+        if (line.quantity > product.stock) {
+            return "Ya no hay suficientes unidades de ${product.name}."
+        }
+    }
+    return null
+}
+
+fun deductOrderFromInventory(
+    products: List<Chocolate>,
+    lines: List<OrderLine>
+): List<Chocolate> {
+    require(validateOrderAvailability(products, lines) == null)
+    val purchasedQuantities = lines.associate { it.productId to it.quantity }
+    return products.map { product ->
+        val purchasedQuantity = purchasedQuantities[product.id] ?: 0
+        product.copy(stock = product.stock - purchasedQuantity)
+    }
+}

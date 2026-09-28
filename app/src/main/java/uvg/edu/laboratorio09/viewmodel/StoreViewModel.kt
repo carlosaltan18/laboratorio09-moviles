@@ -6,14 +6,21 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import uvg.edu.laboratorio09.data.ChocolateCatalogFactory
+import uvg.edu.laboratorio09.domain.revalidated
 import uvg.edu.laboratorio09.model.Chocolate
 import uvg.edu.laboratorio09.model.Chocolatier
+import uvg.edu.laboratorio09.model.CheckoutUiState
+import uvg.edu.laboratorio09.model.BillingType
+import uvg.edu.laboratorio09.model.PaymentMethod
 import uvg.edu.laboratorio09.domain.addToOrder
 import uvg.edu.laboratorio09.domain.decreaseOrderLine
+import uvg.edu.laboratorio09.domain.deductOrderFromInventory
 import uvg.edu.laboratorio09.domain.lineSubtotalCents
 import uvg.edu.laboratorio09.domain.orderTotalCents
 import uvg.edu.laboratorio09.domain.removeOrderLine
+import uvg.edu.laboratorio09.domain.validateOrderAvailability
 import uvg.edu.laboratorio09.model.OrderLine
+import uvg.edu.laboratorio09.model.OrderReceipt
 import uvg.edu.laboratorio09.model.OrderResult
 import uvg.edu.laboratorio09.model.StoreUiState
 
@@ -89,6 +96,108 @@ class StoreViewModel : ViewModel() {
     )
 
     val uiState: StateFlow<StoreUiState> = _uiState.asStateFlow()
+
+    private val _checkoutUiState = MutableStateFlow(CheckoutUiState().revalidated())
+    val checkoutUiState: StateFlow<CheckoutUiState> = _checkoutUiState.asStateFlow()
+
+    private val _orderReceipt = MutableStateFlow<OrderReceipt?>(null)
+    val orderReceipt: StateFlow<OrderReceipt?> = _orderReceipt.asStateFlow()
+
+    private var nextOrderNumber = 1
+
+    fun onFullNameChange(value: String) {
+        _checkoutUiState.update {
+            it.copy(fullName = value, fullNameTouched = true).revalidated()
+        }
+    }
+
+    fun onPhoneNumberChange(value: String) {
+        _checkoutUiState.update {
+            it.copy(phoneNumber = value, phoneNumberTouched = true).revalidated()
+        }
+    }
+
+    fun onNitChange(value: String) {
+        _checkoutUiState.update {
+            it.copy(nit = value, nitTouched = true).revalidated()
+        }
+    }
+
+    fun onBusinessNameChange(value: String) {
+        _checkoutUiState.update {
+            it.copy(businessName = value, businessNameTouched = true).revalidated()
+        }
+    }
+
+    fun onPaymentMethodChange(method: PaymentMethod) {
+        _checkoutUiState.update { it.copy(paymentMethod = method).revalidated() }
+    }
+
+    fun onBillingTypeChange(type: BillingType) {
+        _checkoutUiState.update { currentState ->
+            if (type == BillingType.CONSUMER_FINAL) {
+                currentState.copy(
+                    billingType = type,
+                    nitTouched = false,
+                    businessNameTouched = false,
+                    nitError = null,
+                    businessNameError = null
+                ).revalidated()
+            } else {
+                currentState.copy(billingType = type).revalidated()
+            }
+        }
+    }
+
+    fun confirmOrder(): Boolean {
+        val currentCheckout = _checkoutUiState.value
+        val validatedCheckout = currentCheckout.revalidated().copy(
+            fullNameTouched = true,
+            phoneNumberTouched = true,
+            nitTouched = currentCheckout.billingType == BillingType.NIT,
+            businessNameTouched = currentCheckout.billingType == BillingType.NIT
+        )
+        _checkoutUiState.value = validatedCheckout
+
+        val currentOrder = _uiState.value
+        val availabilityError = validateOrderAvailability(
+            products = currentOrder.products,
+            lines = currentOrder.orderLines
+        )
+        if (!validatedCheckout.isFormValid || availabilityError != null) {
+            if (availabilityError != null) {
+                _uiState.value = currentOrder.copy(orderMessage = availabilityError)
+            }
+            return false
+        }
+
+        val folio = "#ORD-${nextOrderNumber.toString().padStart(5, '0')}"
+        nextOrderNumber += 1
+        _orderReceipt.value = OrderReceipt(
+            folio = folio,
+            customerName = validatedCheckout.fullName.trim(),
+            phoneNumber = validatedCheckout.phoneNumber.trim(),
+            billingType = validatedCheckout.billingType,
+            nit = validatedCheckout.nit.trim().takeIf {
+                validatedCheckout.billingType == BillingType.NIT
+            },
+            businessName = validatedCheckout.businessName.trim().takeIf {
+                validatedCheckout.billingType == BillingType.NIT
+            },
+            paymentMethod = validatedCheckout.paymentMethod,
+            totalCents = currentOrder.orderTotalCents
+        )
+
+        val updatedProducts = deductOrderFromInventory(
+            products = currentOrder.products,
+            lines = currentOrder.orderLines
+        )
+        _uiState.value = currentOrder
+            .copy(products = updatedProducts)
+            .withOrderLines(emptyList())
+        _checkoutUiState.value = CheckoutUiState().revalidated()
+        return true
+    }
 
     fun updateQuery(query: String) {
         _uiState.update { it.copy(query = query) }
