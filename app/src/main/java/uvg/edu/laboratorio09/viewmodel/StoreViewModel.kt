@@ -14,9 +14,11 @@ import uvg.edu.laboratorio09.model.BillingType
 import uvg.edu.laboratorio09.model.PaymentMethod
 import uvg.edu.laboratorio09.domain.addToOrder
 import uvg.edu.laboratorio09.domain.decreaseOrderLine
+import uvg.edu.laboratorio09.domain.deductOrderFromInventory
 import uvg.edu.laboratorio09.domain.lineSubtotalCents
 import uvg.edu.laboratorio09.domain.orderTotalCents
 import uvg.edu.laboratorio09.domain.removeOrderLine
+import uvg.edu.laboratorio09.domain.validateOrderAvailability
 import uvg.edu.laboratorio09.model.OrderLine
 import uvg.edu.laboratorio09.model.OrderReceipt
 import uvg.edu.laboratorio09.model.OrderResult
@@ -158,7 +160,14 @@ class StoreViewModel : ViewModel() {
         _checkoutUiState.value = validatedCheckout
 
         val currentOrder = _uiState.value
-        if (!validatedCheckout.isFormValid || currentOrder.totalOrderUnits == 0) {
+        val availabilityError = validateOrderAvailability(
+            products = currentOrder.products,
+            lines = currentOrder.orderLines
+        )
+        if (!validatedCheckout.isFormValid || availabilityError != null) {
+            if (availabilityError != null) {
+                _uiState.value = currentOrder.copy(orderMessage = availabilityError)
+            }
             return false
         }
 
@@ -179,7 +188,13 @@ class StoreViewModel : ViewModel() {
             totalCents = currentOrder.orderTotalCents
         )
 
-        _uiState.update { it.withOrderLines(emptyList()) }
+        val updatedProducts = deductOrderFromInventory(
+            products = currentOrder.products,
+            lines = currentOrder.orderLines
+        )
+        _uiState.value = currentOrder
+            .copy(products = updatedProducts)
+            .withOrderLines(emptyList())
         _checkoutUiState.value = CheckoutUiState().revalidated()
         return true
     }

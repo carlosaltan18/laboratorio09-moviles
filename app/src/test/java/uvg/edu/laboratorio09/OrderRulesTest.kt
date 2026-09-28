@@ -2,13 +2,16 @@ package uvg.edu.laboratorio09
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import uvg.edu.laboratorio09.domain.addToOrder
 import uvg.edu.laboratorio09.domain.decreaseOrderLine
+import uvg.edu.laboratorio09.domain.deductOrderFromInventory
 import uvg.edu.laboratorio09.domain.orderTotalCents
 import uvg.edu.laboratorio09.domain.removeOrderLine
+import uvg.edu.laboratorio09.domain.validateOrderAvailability
 import uvg.edu.laboratorio09.model.Chocolate
 import uvg.edu.laboratorio09.model.OrderLine
 import uvg.edu.laboratorio09.model.OrderResult
@@ -89,5 +92,18 @@ class OrderRulesTest {
         assertTrue(viewModel.uiState.value.orderLines.isEmpty())
         assertTrue(viewModel.uiState.value.orderSubtotalsCents.isEmpty())
         assertEquals(0, viewModel.uiState.value.orderTotalCents)
+    }
+
+    @Test
+    fun confirmedQuantitiesAreDeductedFromInventory() {
+        val lines = listOf(OrderLine("a", 3), OrderLine("b", 2))
+
+        assertNull(validateOrderAvailability(products, lines))
+        val updatedProducts = deductOrderFromInventory(products, lines)
+
+        assertEquals(0, updatedProducts.first { it.id == "a" }.stock)
+        assertEquals(6, updatedProducts.first { it.id == "b" }.stock)
+        assertEquals(0, products.first { it.id == "empty" }.stock)
+        assertEquals(3, products.first { it.id == "a" }.stock)
     }
 }

@@ -67,6 +67,10 @@ class StoreViewModelCheckoutTest {
         assertEquals(5200, receipt?.totalCents)
         assertTrue(viewModel.uiState.value.orderLines.isEmpty())
         assertEquals(0, viewModel.uiState.value.orderTotalCents)
+        assertEquals(
+            2,
+            viewModel.uiState.value.products.first { it.id == "chocolate_02" }.stock
+        )
 
         val resetCheckout = viewModel.checkoutUiState.value
         assertEquals("", resetCheckout.fullName)
@@ -93,6 +97,24 @@ class StoreViewModelCheckoutTest {
         assertEquals("#ORD-00001", firstReceipt?.folio)
         assertEquals("#ORD-00002", viewModel.orderReceipt.value?.folio)
         assertEquals(4800, viewModel.orderReceipt.value?.totalCents)
+    }
+
+    @Test
+    fun buyingAllAvailableUnits_marksProductAsSoldOut() {
+        val viewModel = StoreViewModel()
+        repeat(3) { viewModel.addProductToOrder("chocolate_02") }
+        completeConsumerFinalForm(viewModel)
+
+        assertTrue(viewModel.confirmOrder())
+        assertEquals(
+            0,
+            viewModel.uiState.value.products.first { it.id == "chocolate_02" }.stock
+        )
+        assertEquals(0, viewModel.uiState.value.totalOrderUnits)
+
+        viewModel.addProductToOrder("chocolate_02")
+        assertEquals(0, viewModel.uiState.value.totalOrderUnits)
+        assertTrue(viewModel.uiState.value.orderMessage?.contains("0 unidades") == true)
     }
 
     private fun completeConsumerFinalForm(viewModel: StoreViewModel) {
