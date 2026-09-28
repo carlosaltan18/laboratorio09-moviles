@@ -47,6 +47,7 @@ fun OrderScreen(
     onRemove: (String) -> Unit,
     onBack: () -> Unit,
     onCatalogClick: () -> Unit,
+    onCheckoutClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -123,6 +124,14 @@ fun OrderScreen(
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(16.dp)
             )
+            if (lines.isNotEmpty()) {
+                TextButton(
+                    onClick = onCheckoutClick,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text("Continuar al checkout")
+                }
+            }
         }
     }
 }

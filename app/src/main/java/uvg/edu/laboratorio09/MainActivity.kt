@@ -30,6 +30,7 @@ import uvg.edu.laboratorio09.ui.screens.OrderScreen
 import uvg.edu.laboratorio09.ui.screens.ChocolateCatalogScreen
 import uvg.edu.laboratorio09.ui.screens.ChocolateDetailScreen
 import uvg.edu.laboratorio09.ui.screens.ChocolatierProfileScreen
+import uvg.edu.laboratorio09.ui.screens.CheckoutScreen
 import uvg.edu.laboratorio09.ui.theme.Laboratorio09Theme
 import uvg.edu.laboratorio09.viewmodel.StoreViewModel
 
@@ -46,9 +47,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun ChocolateStoreApp() {
+fun ChocolateStoreApp(modifier: Modifier = Modifier) {
     val viewModel: StoreViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val checkoutUiState by viewModel.checkoutUiState.collectAsStateWithLifecycle()
     val backStack = rememberNavBackStack(StoreNavKey.Catalog)
 
     val gridState = rememberLazyGridState()
@@ -66,6 +68,7 @@ fun ChocolateStoreApp() {
     }
 
     NavDisplay(
+        modifier = modifier,
         backStack = backStack,
         onBack = { if (backStack.size > 1) backStack.removeLastOrNull() },
         // Adaptado de Android Developers: Animate between destinations (Navigation 3).
@@ -137,7 +140,23 @@ fun ChocolateStoreApp() {
                     onBack = { backStack.removeLastOrNull() },
                     onCatalogClick = {
                         while (backStack.size > 1) backStack.removeLastOrNull()
-                    }
+                    },
+                    onCheckoutClick = { backStack.add(StoreNavKey.Checkout) }
+                )
+            }
+            entry<StoreNavKey.Checkout> {
+                CheckoutScreen(
+                    uiState = checkoutUiState,
+                    orderUnitCount = uiState.totalOrderUnits,
+                    orderTotalCents = uiState.orderTotalCents,
+                    onFullNameChange = viewModel::onFullNameChange,
+                    onPhoneNumberChange = viewModel::onPhoneNumberChange,
+                    onBillingTypeChange = viewModel::onBillingTypeChange,
+                    onNitChange = viewModel::onNitChange,
+                    onBusinessNameChange = viewModel::onBusinessNameChange,
+                    onPaymentMethodChange = viewModel::onPaymentMethodChange,
+                    onConfirm = { /* Persona 3 conectará confirmación, recibo y reseteo. */ },
+                    onBack = { backStack.removeLastOrNull() }
                 )
             }
             entry<StoreNavKey.Profile> { key ->
@@ -159,9 +178,12 @@ fun ChocolateStoreApp() {
 }
 
 @Composable
-private fun MissingDestination(message: String) {
+private fun MissingDestination(
+    message: String,
+    modifier: Modifier = Modifier
+) {
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         Text(message)
