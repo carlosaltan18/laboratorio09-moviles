@@ -30,6 +30,8 @@ import uvg.edu.laboratorio09.ui.screens.OrderScreen
 import uvg.edu.laboratorio09.ui.screens.ChocolateCatalogScreen
 import uvg.edu.laboratorio09.ui.screens.ChocolateDetailScreen
 import uvg.edu.laboratorio09.ui.screens.ChocolatierProfileScreen
+import uvg.edu.laboratorio09.ui.screens.CheckoutScreen
+import uvg.edu.laboratorio09.ui.screens.OrderConfirmationScreen
 import uvg.edu.laboratorio09.ui.theme.Laboratorio09Theme
 import uvg.edu.laboratorio09.viewmodel.StoreViewModel
 
@@ -46,9 +48,11 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun ChocolateStoreApp() {
+fun ChocolateStoreApp(modifier: Modifier = Modifier) {
     val viewModel: StoreViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val checkoutUiState by viewModel.checkoutUiState.collectAsStateWithLifecycle()
+    val orderReceipt by viewModel.orderReceipt.collectAsStateWithLifecycle()
     val backStack = rememberNavBackStack(StoreNavKey.Catalog)
 
     val gridState = rememberLazyGridState()
@@ -64,10 +68,20 @@ fun ChocolateStoreApp() {
         viewModel.clearOrderMessage()
         backStack.add(StoreNavKey.Order)
     }
+    val returnToCatalog: () -> Unit = {
+        while (backStack.size > 1) backStack.removeLastOrNull()
+    }
 
     NavDisplay(
+        modifier = modifier,
         backStack = backStack,
-        onBack = { if (backStack.size > 1) backStack.removeLastOrNull() },
+        onBack = {
+            if (backStack.lastOrNull() == StoreNavKey.Confirmation) {
+                returnToCatalog()
+            } else if (backStack.size > 1) {
+                backStack.removeLastOrNull()
+            }
+        },
         // Adaptado de Android Developers: Animate between destinations (Navigation 3).
         transitionSpec = {
             slideInHorizontally(tween(250), initialOffsetX = { it }) togetherWith
@@ -135,10 +149,39 @@ fun ChocolateStoreApp() {
                     onDecrease = viewModel::decreaseProduct,
                     onRemove = viewModel::removeProduct,
                     onBack = { backStack.removeLastOrNull() },
-                    onCatalogClick = {
-                        while (backStack.size > 1) backStack.removeLastOrNull()
-                    }
+                    onCatalogClick = returnToCatalog,
+                    onCheckoutClick = { backStack.add(StoreNavKey.Checkout) }
                 )
+            }
+            entry<StoreNavKey.Checkout> {
+                CheckoutScreen(
+                    uiState = checkoutUiState,
+                    orderUnitCount = uiState.totalOrderUnits,
+                    orderTotalCents = uiState.orderTotalCents,
+                    onFullNameChange = viewModel::onFullNameChange,
+                    onPhoneNumberChange = viewModel::onPhoneNumberChange,
+                    onBillingTypeChange = viewModel::onBillingTypeChange,
+                    onNitChange = viewModel::onNitChange,
+                    onBusinessNameChange = viewModel::onBusinessNameChange,
+                    onPaymentMethodChange = viewModel::onPaymentMethodChange,
+                    onConfirm = {
+                        if (viewModel.confirmOrder()) {
+                            backStack.add(StoreNavKey.Confirmation)
+                        }
+                    },
+                    onBack = { backStack.removeLastOrNull() }
+                )
+            }
+            entry<StoreNavKey.Confirmation> {
+                val receipt = orderReceipt
+                if (receipt != null) {
+                    OrderConfirmationScreen(
+                        receipt = receipt,
+                        onReturnToCatalog = returnToCatalog
+                    )
+                } else {
+                    MissingDestination(message = "Recibo no encontrado")
+                }
             }
             entry<StoreNavKey.Profile> { key ->
                 val profile = uiState.profiles.find {
@@ -159,9 +202,12 @@ fun ChocolateStoreApp() {
 }
 
 @Composable
-private fun MissingDestination(message: String) {
+private fun MissingDestination(
+    message: String,
+    modifier: Modifier = Modifier
+) {
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         Text(message)

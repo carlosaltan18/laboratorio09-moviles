@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Card
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +48,7 @@ fun OrderScreen(
     onRemove: (String) -> Unit,
     onBack: () -> Unit,
     onCatalogClick: () -> Unit,
+    onCheckoutClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -123,6 +125,13 @@ fun OrderScreen(
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(16.dp)
             )
+            Button(
+                onClick = onCheckoutClick,
+                enabled = lines.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text("Continuar al checkout")
+            }
         }
     }
 }
