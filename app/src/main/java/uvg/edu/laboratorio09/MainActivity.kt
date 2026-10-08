@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -50,9 +52,17 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun ChocolateStoreApp(modifier: Modifier = Modifier) {
     val viewModel: StoreViewModel = viewModel()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val checkoutUiState by viewModel.checkoutUiState.collectAsStateWithLifecycle()
+    val storeState = viewModel.uiState.collectAsStateWithLifecycle()
+    val checkoutState = viewModel.checkoutUiState.collectAsStateWithLifecycle()
+    val uiState by storeState
+    val checkoutUiState by checkoutState
     val orderReceipt by viewModel.orderReceipt.collectAsStateWithLifecycle()
+    val isConfirmEnabled by remember(storeState, checkoutState) {
+        derivedStateOf {
+            checkoutState.value.isFormValid &&
+                storeState.value.totalOrderUnits > 0
+        }
+    }
     val backStack = rememberNavBackStack(StoreNavKey.Catalog)
 
     val gridState = rememberLazyGridState()
@@ -158,6 +168,7 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
                     uiState = checkoutUiState,
                     orderUnitCount = uiState.totalOrderUnits,
                     orderTotalCents = uiState.orderTotalCents,
+                    isConfirmEnabled = isConfirmEnabled,
                     onFullNameChange = viewModel::onFullNameChange,
                     onPhoneNumberChange = viewModel::onPhoneNumberChange,
                     onBillingTypeChange = viewModel::onBillingTypeChange,
