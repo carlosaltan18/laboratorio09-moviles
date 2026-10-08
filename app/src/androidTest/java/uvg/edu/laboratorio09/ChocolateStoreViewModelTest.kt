@@ -1,16 +1,16 @@
 package uvg.edu.laboratorio09
 
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import uvg.edu.laboratorio09.viewmodel.StoreViewModel
 
-class ChocolateCatalogTest {
+class ChocolateCatalogTest : StorePersistenceTestBase() {
     @Test
-    fun catalogIsStableAndMeetsTheProductRequirements() {
-        val firstCatalog = StoreViewModel().uiState.value.products
-        val secondCatalog = StoreViewModel().uiState.value.products
-        val chocolatierIds = StoreViewModel().uiState.value.profiles.map { it.id }.toSet()
+    fun catalogIsStableAndMeetsTheProductRequirements() = runBlocking {
+        val firstCatalog = createViewModel().uiState.value.products
+        val secondCatalog = createViewModel().uiState.value.products
+        val chocolatierIds = createViewModel().uiState.value.profiles.map { it.id }.toSet()
 
         assertEquals(500, firstCatalog.size)
         assertEquals(500, firstCatalog.map { it.id }.distinct().size)
