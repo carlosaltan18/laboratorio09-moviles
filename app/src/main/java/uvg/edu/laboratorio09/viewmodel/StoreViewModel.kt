@@ -1,10 +1,12 @@
 package uvg.edu.laboratorio09.viewmodel
 
 import android.app.Application
+import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,6 +22,8 @@ import uvg.edu.laboratorio09.data.ChocolateCatalogFactory
 import uvg.edu.laboratorio09.data.local.FavoriteEntity
 import uvg.edu.laboratorio09.data.local.OrderLineEntity
 import uvg.edu.laboratorio09.data.local.StoreDatabase
+import uvg.edu.laboratorio09.data.local.catalogSortPreferenceKey
+import uvg.edu.laboratorio09.data.local.storePreferencesDataStore
 import uvg.edu.laboratorio09.data.local.toOrderLine
 import uvg.edu.laboratorio09.data.local.toProductId
 import uvg.edu.laboratorio09.domain.addToOrder
@@ -30,6 +34,7 @@ import uvg.edu.laboratorio09.domain.orderTotalCents
 import uvg.edu.laboratorio09.domain.revalidated
 import uvg.edu.laboratorio09.domain.validateOrderAvailability
 import uvg.edu.laboratorio09.model.BillingType
+import uvg.edu.laboratorio09.model.CatalogSort
 import uvg.edu.laboratorio09.model.CheckoutUiState
 import uvg.edu.laboratorio09.model.Chocolate
 import uvg.edu.laboratorio09.model.Chocolatier
@@ -38,6 +43,7 @@ import uvg.edu.laboratorio09.model.OrderReceipt
 import uvg.edu.laboratorio09.model.OrderResult
 import uvg.edu.laboratorio09.model.PaymentMethod
 import uvg.edu.laboratorio09.model.StoreUiState
+import java.io.IOException
 
 private val originalChocolates = listOf(
     Chocolate(
@@ -95,6 +101,14 @@ private data class StoreMemoryState(
 
 class StoreViewModel(application: Application) : AndroidViewModel(application) {
     private val storeDao = StoreDatabase.getInstance(application).storeDao()
+    private val catalogSortFlow = application.storePreferencesDataStore.data
+        .catch { error ->
+            if (error is IOException) emit(androidx.datastore.preferences.core.emptyPreferences())
+            else throw error
+        }
+        .map { preferences ->
+            CatalogSort.fromStoredValue(preferences[catalogSortPreferenceKey])
+        }
     // Serializa acciones rapidas; cada regla usa el ultimo pedido de Room.
     private val mutationMutex = Mutex()
     private val favoriteIdsFlow = storeDao.observeFavorites().map { entities ->
@@ -250,6 +264,14 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun clearQuery() = updateQuery("")
+
+    fun updateCatalogSort(sort: CatalogSort) {
+        viewModelScope.launch {
+            getApplication<Application>().storePreferencesDataStore.edit { preferences ->
+                preferences[catalogSortPreferenceKey] = sort.storedValue
+            }
+        }
+    }
 
     fun clearOrderMessage() {
         _memoryState.update { it.copy(orderMessage = null) }
