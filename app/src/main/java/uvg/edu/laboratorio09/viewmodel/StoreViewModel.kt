@@ -138,13 +138,14 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     val uiState: StateFlow<StoreUiState> = combine(
-        _memoryState, favoriteIdsFlow, orderLinesFlow
-    ) { memory, favoriteIds, orderLines ->
+        _memoryState, favoriteIdsFlow, orderLinesFlow, catalogSortFlow
+    ) { memory, favoriteIds, orderLines, catalogSort ->
         StoreUiState(
             products = memory.products,
             profiles = memory.profiles,
             query = memory.query,
-            favoriteProductIds = favoriteIds
+            favoriteProductIds = favoriteIds,
+            catalogSort = catalogSort
         ).withOrderLines(orderLines, memory.orderMessage)
     }.stateIn(
         scope = viewModelScope,

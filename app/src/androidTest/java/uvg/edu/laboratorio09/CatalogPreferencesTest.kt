@@ -9,6 +9,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -42,5 +43,24 @@ class CatalogPreferencesTest {
         }
 
         assertEquals("price", storedValue)
+    }
+
+    @Test
+    fun newViewModelRestoresPersistedSortAndAppliesItToCatalog() = runBlocking {
+        val firstViewModel = StoreViewModel(application)
+        firstViewModel.updateCatalogSort(CatalogSort.NAME)
+        withTimeout(5_000) {
+            application.storePreferencesDataStore.data.first { preferences ->
+                preferences[catalogSortPreferenceKey] == CatalogSort.NAME.storedValue
+            }
+        }
+
+        val restoredState = withTimeout(5_000) {
+            StoreViewModel(application).uiState.first { it.catalogSort == CatalogSort.NAME }
+        }
+        val names = restoredState.filteredProducts.map { it.name.lowercase() }
+
+        assertEquals(CatalogSort.NAME, restoredState.catalogSort)
+        assertTrue(names.zipWithNext().all { (first, second) -> first <= second })
     }
 }
