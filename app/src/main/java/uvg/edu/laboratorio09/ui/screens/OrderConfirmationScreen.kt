@@ -55,6 +55,7 @@ fun OrderConfirmationScreen(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                ReceiptRow("ID del servidor", receipt.serverId)
                 ReceiptRow("Folio", receipt.folio)
                 ReceiptRow("Cliente", receipt.customerName)
                 ReceiptRow("Teléfono", receipt.phoneNumber)

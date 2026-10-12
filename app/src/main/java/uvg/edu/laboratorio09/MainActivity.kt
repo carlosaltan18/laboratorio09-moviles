@@ -68,6 +68,16 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
     }
     val backStack = rememberNavBackStack(StoreNavKey.Catalog)
 
+    LaunchedEffect(submissionState) {
+        if (
+            submissionState is OrderSubmissionState.Success &&
+            backStack.lastOrNull() == StoreNavKey.Checkout
+        ) {
+            backStack.add(StoreNavKey.Confirmation)
+            viewModel.consumeSubmissionSuccess()
+        }
+    }
+
     val gridState = rememberLazyGridState()
     var lastScrollQuery by rememberSaveable { mutableStateOf(uiState.query) }
     // Vive por encima de NavDisplay: regresar o rotar no reinicia el scroll.
