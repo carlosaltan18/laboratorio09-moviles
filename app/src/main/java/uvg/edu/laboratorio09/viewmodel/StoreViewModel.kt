@@ -1,28 +1,49 @@
 package uvg.edu.laboratorio09.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.datastore.preferences.core.edit
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import uvg.edu.laboratorio09.data.ChocolateCatalogFactory
-import uvg.edu.laboratorio09.domain.revalidated
-import uvg.edu.laboratorio09.model.Chocolate
-import uvg.edu.laboratorio09.model.Chocolatier
-import uvg.edu.laboratorio09.model.CheckoutUiState
-import uvg.edu.laboratorio09.model.BillingType
-import uvg.edu.laboratorio09.model.PaymentMethod
+import uvg.edu.laboratorio09.data.local.FavoriteEntity
+import uvg.edu.laboratorio09.data.local.OrderLineEntity
+import uvg.edu.laboratorio09.data.local.StoreDatabase
+import uvg.edu.laboratorio09.data.local.catalogSortPreferenceKey
+import uvg.edu.laboratorio09.data.local.storePreferencesDataStore
+import uvg.edu.laboratorio09.data.local.toOrderLine
+import uvg.edu.laboratorio09.data.local.toProductId
 import uvg.edu.laboratorio09.domain.addToOrder
 import uvg.edu.laboratorio09.domain.decreaseOrderLine
 import uvg.edu.laboratorio09.domain.deductOrderFromInventory
 import uvg.edu.laboratorio09.domain.lineSubtotalCents
 import uvg.edu.laboratorio09.domain.orderTotalCents
-import uvg.edu.laboratorio09.domain.removeOrderLine
+import uvg.edu.laboratorio09.domain.revalidated
 import uvg.edu.laboratorio09.domain.validateOrderAvailability
+import uvg.edu.laboratorio09.model.BillingType
+import uvg.edu.laboratorio09.model.CatalogSort
+import uvg.edu.laboratorio09.model.CheckoutUiState
+import uvg.edu.laboratorio09.model.Chocolate
+import uvg.edu.laboratorio09.model.Chocolatier
 import uvg.edu.laboratorio09.model.OrderLine
 import uvg.edu.laboratorio09.model.OrderReceipt
 import uvg.edu.laboratorio09.model.OrderResult
+import uvg.edu.laboratorio09.model.PaymentMethod
 import uvg.edu.laboratorio09.model.StoreUiState
+import java.io.IOException
 
 private val originalChocolates = listOf(
     Chocolate(
@@ -71,7 +92,31 @@ private val associatedProfiles = listOf(
     )
 )
 
-class StoreViewModel : ViewModel() {
+private data class StoreMemoryState(
+    val products: List<Chocolate>,
+    val profiles: List<Chocolatier>,
+    val query: String = "",
+    val orderMessage: String? = null
+)
+
+class StoreViewModel(application: Application) : AndroidViewModel(application) {
+    private val storeDao = StoreDatabase.getInstance(application).storeDao()
+    private val catalogSortFlow = application.storePreferencesDataStore.data
+        .catch { error ->
+            if (error is IOException) emit(androidx.datastore.preferences.core.emptyPreferences())
+            else throw error
+        }
+        .map { preferences ->
+            CatalogSort.fromStoredValue(preferences[catalogSortPreferenceKey])
+        }
+    // Serializa acciones rapidas; cada regla usa el ultimo pedido de Room.
+    private val mutationMutex = Mutex()
+    private val favoriteIdsFlow = storeDao.observeFavorites().map { entities ->
+        entities.map { it.toProductId() }.toSet()
+    }
+    private val orderLinesFlow = storeDao.observeOrderLines().map { entities ->
+        entities.map { it.toOrderLine() }
+    }
 
     private val initialCatalog = ChocolateCatalogFactory.createCatalog(
         originalChocolates = originalChocolates,
@@ -88,14 +133,25 @@ class StoreViewModel : ViewModel() {
         check(initialCatalog.all { it.imageUrl.isNotBlank() })
     }
 
-    private val _uiState = MutableStateFlow(
-        StoreUiState(
-            products = initialCatalog,
-            profiles = associatedProfiles
-        )
+    private val _memoryState = MutableStateFlow(
+        StoreMemoryState(products = initialCatalog, profiles = associatedProfiles)
     )
 
-    val uiState: StateFlow<StoreUiState> = _uiState.asStateFlow()
+    val uiState: StateFlow<StoreUiState> = combine(
+        _memoryState, favoriteIdsFlow, orderLinesFlow, catalogSortFlow
+    ) { memory, favoriteIds, orderLines, catalogSort ->
+        StoreUiState(
+            products = memory.products,
+            profiles = memory.profiles,
+            query = memory.query,
+            favoriteProductIds = favoriteIds,
+            catalogSort = catalogSort
+        ).withOrderLines(orderLines, memory.orderMessage)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = StoreUiState(products = initialCatalog, profiles = associatedProfiles)
+    )
 
     private val _checkoutUiState = MutableStateFlow(CheckoutUiState().revalidated())
     val checkoutUiState: StateFlow<CheckoutUiState> = _checkoutUiState.asStateFlow()
@@ -149,7 +205,11 @@ class StoreViewModel : ViewModel() {
         }
     }
 
-    fun confirmOrder(): Boolean {
+    suspend fun confirmOrder(): Boolean = viewModelScope.async {
+        mutationMutex.withLock { confirmPersistedOrder() }
+    }.await()
+
+    private suspend fun confirmPersistedOrder(): Boolean {
         val currentCheckout = _checkoutUiState.value
         val validatedCheckout = currentCheckout.revalidated().copy(
             fullNameTouched = true,
@@ -159,20 +219,21 @@ class StoreViewModel : ViewModel() {
         )
         _checkoutUiState.value = validatedCheckout
 
-        val currentOrder = _uiState.value
+        val memory = _memoryState.value
+        val currentOrder = StoreUiState(memory.products, memory.profiles)
+            .withOrderLines(orderLinesFlow.first())
         val availabilityError = validateOrderAvailability(
             products = currentOrder.products,
             lines = currentOrder.orderLines
         )
         if (!validatedCheckout.isFormValid || availabilityError != null) {
             if (availabilityError != null) {
-                _uiState.value = currentOrder.copy(orderMessage = availabilityError)
+                _memoryState.update { it.copy(orderMessage = availabilityError) }
             }
             return false
         }
 
         val folio = "#ORD-${nextOrderNumber.toString().padStart(5, '0')}"
-        nextOrderNumber += 1
         _orderReceipt.value = OrderReceipt(
             folio = folio,
             customerName = validatedCheckout.fullName.trim(),
@@ -192,41 +253,71 @@ class StoreViewModel : ViewModel() {
             products = currentOrder.products,
             lines = currentOrder.orderLines
         )
-        _uiState.value = currentOrder
-            .copy(products = updatedProducts)
-            .withOrderLines(emptyList())
+        storeDao.clearOrder()
+        _memoryState.update { it.copy(products = updatedProducts, orderMessage = null) }
+        nextOrderNumber += 1
         _checkoutUiState.value = CheckoutUiState().revalidated()
         return true
     }
 
     fun updateQuery(query: String) {
-        _uiState.update { it.copy(query = query) }
+        _memoryState.update { it.copy(query = query) }
     }
 
     fun clearQuery() = updateQuery("")
 
+    fun updateCatalogSort(sort: CatalogSort) {
+        viewModelScope.launch {
+            getApplication<Application>().storePreferencesDataStore.edit { preferences ->
+                preferences[catalogSortPreferenceKey] = sort.storedValue
+            }
+        }
+    }
+
     fun clearOrderMessage() {
-        _uiState.update { it.copy(orderMessage = null) }
+        _memoryState.update { it.copy(orderMessage = null) }
     }
 
     fun addProductToOrder(productId: String) {
-        _uiState.update { state ->
-            when (val result = addToOrder(state.products, state.orderLines, productId)) {
-                is OrderResult.Success -> state.withOrderLines(result.lines, result.message)
-                is OrderResult.Rejected -> state.copy(orderMessage = result.reason)
+        viewModelScope.launch {
+            mutationMutex.withLock {
+                when (val result = addToOrder(
+                    _memoryState.value.products, orderLinesFlow.first(), productId
+                )) {
+                    is OrderResult.Success -> {
+                        val line = result.lines.first { it.productId == productId }
+                        storeDao.upsertOrderLine(OrderLineEntity(line.productId, line.quantity))
+                        _memoryState.update { it.copy(orderMessage = result.message) }
+                    }
+                    is OrderResult.Rejected -> {
+                        _memoryState.update { it.copy(orderMessage = result.reason) }
+                    }
+                }
             }
         }
     }
 
     fun decreaseProduct(productId: String) {
-        _uiState.update { state ->
-            state.withOrderLines(decreaseOrderLine(state.orderLines, productId))
+        viewModelScope.launch {
+            mutationMutex.withLock {
+                val lines = decreaseOrderLine(orderLinesFlow.first(), productId)
+                val line = lines.find { it.productId == productId }
+                if (line == null) {
+                    storeDao.deleteOrderLine(productId)
+                } else {
+                    storeDao.upsertOrderLine(OrderLineEntity(line.productId, line.quantity))
+                }
+                clearOrderMessage()
+            }
         }
     }
 
     fun removeProduct(productId: String) {
-        _uiState.update { state ->
-            state.withOrderLines(removeOrderLine(state.orderLines, productId))
+        viewModelScope.launch {
+            mutationMutex.withLock {
+                storeDao.deleteOrderLine(productId)
+                clearOrderMessage()
+            }
         }
     }
 
@@ -244,17 +335,14 @@ class StoreViewModel : ViewModel() {
     )
 
     fun toggleFavorite(productId: String) {
-        _uiState.update { currentState ->
-            val updatedFavorites =
-                if (productId in currentState.favoriteProductIds) {
-                    currentState.favoriteProductIds - productId
+        viewModelScope.launch {
+            mutationMutex.withLock {
+                if (productId in favoriteIdsFlow.first()) {
+                    storeDao.deleteFavorite(productId)
                 } else {
-                    currentState.favoriteProductIds + productId
+                    storeDao.insertFavorite(FavoriteEntity(productId))
                 }
-
-            currentState.copy(
-                favoriteProductIds = updatedFavorites
-            )
+            }
         }
     }
 }

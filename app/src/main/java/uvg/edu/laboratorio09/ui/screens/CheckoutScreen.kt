@@ -30,8 +30,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,6 +54,7 @@ fun CheckoutScreen(
     uiState: CheckoutUiState,
     orderUnitCount: Int,
     orderTotalCents: Int,
+    isConfirmEnabled: Boolean,
     onFullNameChange: (String) -> Unit,
     onPhoneNumberChange: (String) -> Unit,
     onBillingTypeChange: (BillingType) -> Unit,
@@ -69,9 +68,6 @@ fun CheckoutScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val nitFocusRequester = remember { FocusRequester() }
-    val isConfirmEnabled by remember(uiState.isFormValid, orderUnitCount) {
-        derivedStateOf { uiState.isFormValid && orderUnitCount > 0 }
-    }
 
     fun dismissKeyboard() {
         focusManager.clearFocus()

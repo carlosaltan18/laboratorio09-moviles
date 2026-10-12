@@ -5,6 +5,7 @@ data class StoreUiState(
     val profiles: List<Chocolatier>,
     val favoriteProductIds: Set<String> = emptySet(),
     val query: String = "",
+    val catalogSort: CatalogSort = CatalogSort.ORIGINAL,
     val orderLines: List<OrderLine> = emptyList(),
     val orderMessage: String? = null,
     val orderSubtotalsCents: Map<String, Int> = emptyMap(),
@@ -13,9 +14,10 @@ data class StoreUiState(
     val filteredProducts: List<Chocolate>
         get() {
             val normalizedQuery = query.trim()
-            return if (normalizedQuery.isEmpty()) products else products.filter {
+            val matchingProducts = if (normalizedQuery.isEmpty()) products else products.filter {
                 it.name.contains(normalizedQuery, ignoreCase = true)
             }
+            return sortCatalog(matchingProducts, catalogSort)
         }
 
     val totalOrderUnits: Int

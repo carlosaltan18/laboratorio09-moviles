@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -29,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import uvg.edu.laboratorio09.model.Chocolate
+import uvg.edu.laboratorio09.model.CatalogSort
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,11 +39,13 @@ fun ChocolateCatalogScreen(
     chocolates: List<Chocolate>,
     totalProducts: Int,
     query: String,
+    catalogSort: CatalogSort,
     favoriteIds: Set<String>,
     orderUnitCount: Int,
     gridState: LazyGridState,
     onQueryChange: (String) -> Unit,
     onClearQuery: () -> Unit,
+    onCatalogSortChange: (CatalogSort) -> Unit,
     onChocolateClick: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
     onOrderClick: () -> Unit,
@@ -82,6 +87,26 @@ fun ChocolateCatalogScreen(
                 "${chocolates.size} de $totalProducts productos",
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CatalogSort.entries.forEach { sort ->
+                    FilterChip(
+                        selected = catalogSort == sort,
+                        onClick = { onCatalogSortChange(sort) },
+                        label = {
+                            Text(
+                                when (sort) {
+                                    CatalogSort.ORIGINAL -> "Original"
+                                    CatalogSort.NAME -> "Nombre"
+                                    CatalogSort.PRICE -> "Precio"
+                                }
+                            )
+                        }
+                    )
+                }
+            }
             if (query.isNotEmpty()) {
                 TextButton(onClick = onClearQuery, modifier = Modifier.padding(horizontal = 8.dp)) {
                     Text("Limpiar búsqueda")

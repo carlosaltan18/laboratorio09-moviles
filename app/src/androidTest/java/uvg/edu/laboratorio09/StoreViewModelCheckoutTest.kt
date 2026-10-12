@@ -1,5 +1,6 @@
 package uvg.edu.laboratorio09
 
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -9,10 +10,10 @@ import uvg.edu.laboratorio09.model.BillingType
 import uvg.edu.laboratorio09.model.PaymentMethod
 import uvg.edu.laboratorio09.viewmodel.StoreViewModel
 
-class StoreViewModelCheckoutTest {
+class StoreViewModelCheckoutTest : StorePersistenceTestBase() {
     @Test
-    fun returningToConsumerFinal_clearsFiscalErrorsAndTouchedFlags() {
-        val viewModel = StoreViewModel()
+    fun returningToConsumerFinal_clearsFiscalErrorsAndTouchedFlags() = runBlocking {
+        val viewModel = createViewModel()
 
         viewModel.onFullNameChange("Ana López")
         viewModel.onPhoneNumberChange("55123456")
@@ -33,30 +34,30 @@ class StoreViewModelCheckoutTest {
     }
 
     @Test
-    fun invalidConfirmation_keepsOrderAndDoesNotConsumeFolio() {
-        val viewModel = StoreViewModel()
-        viewModel.addProductToOrder("chocolate_02")
+    fun invalidConfirmation_keepsOrderAndDoesNotConsumeFolio() = runBlocking {
+        val viewModel = createViewModel()
+        addProduct(viewModel, "chocolate_02")
 
-        assertFalse(viewModel.confirmOrder())
+        assertFalse(confirmOrder(viewModel))
         assertEquals(1, viewModel.uiState.value.totalOrderUnits)
         assertNull(viewModel.orderReceipt.value)
         assertTrue(viewModel.checkoutUiState.value.fullNameTouched)
         assertTrue(viewModel.checkoutUiState.value.phoneNumberTouched)
 
         completeConsumerFinalForm(viewModel)
-        assertTrue(viewModel.confirmOrder())
+        assertTrue(confirmOrder(viewModel))
         assertEquals("#ORD-00001", viewModel.orderReceipt.value?.folio)
     }
 
     @Test
-    fun validConfirmation_savesReceiptClearsOrderAndResetsForm() {
-        val viewModel = StoreViewModel()
-        viewModel.addProductToOrder("chocolate_02")
+    fun validConfirmation_savesReceiptClearsOrderAndResetsForm() = runBlocking {
+        val viewModel = createViewModel()
+        addProduct(viewModel, "chocolate_02")
         viewModel.onFullNameChange("  Ana López  ")
         viewModel.onPhoneNumberChange("55123456")
         viewModel.onPaymentMethodChange(PaymentMethod.BANK_TRANSFER)
 
-        assertTrue(viewModel.confirmOrder())
+        assertTrue(confirmOrder(viewModel))
 
         val receipt = viewModel.orderReceipt.value
         assertEquals("#ORD-00001", receipt?.folio)
@@ -82,17 +83,17 @@ class StoreViewModelCheckoutTest {
     }
 
     @Test
-    fun consecutiveValidOrders_useDeterministicSequentialFolios() {
-        val viewModel = StoreViewModel()
+    fun consecutiveValidOrders_useDeterministicSequentialFolios() = runBlocking {
+        val viewModel = createViewModel()
 
-        viewModel.addProductToOrder("chocolate_02")
+        addProduct(viewModel, "chocolate_02")
         completeConsumerFinalForm(viewModel)
-        assertTrue(viewModel.confirmOrder())
+        assertTrue(confirmOrder(viewModel))
         val firstReceipt = viewModel.orderReceipt.value
 
-        viewModel.addProductToOrder("chocolate_03")
+        addProduct(viewModel, "chocolate_03")
         completeConsumerFinalForm(viewModel)
-        assertTrue(viewModel.confirmOrder())
+        assertTrue(confirmOrder(viewModel))
 
         assertEquals("#ORD-00001", firstReceipt?.folio)
         assertEquals("#ORD-00002", viewModel.orderReceipt.value?.folio)
@@ -100,19 +101,19 @@ class StoreViewModelCheckoutTest {
     }
 
     @Test
-    fun buyingAllAvailableUnits_marksProductAsSoldOut() {
-        val viewModel = StoreViewModel()
-        repeat(3) { viewModel.addProductToOrder("chocolate_02") }
+    fun buyingAllAvailableUnits_marksProductAsSoldOut() = runBlocking {
+        val viewModel = createViewModel()
+        repeat(3) { addProduct(viewModel, "chocolate_02") }
         completeConsumerFinalForm(viewModel)
 
-        assertTrue(viewModel.confirmOrder())
+        assertTrue(confirmOrder(viewModel))
         assertEquals(
             0,
             viewModel.uiState.value.products.first { it.id == "chocolate_02" }.stock
         )
         assertEquals(0, viewModel.uiState.value.totalOrderUnits)
 
-        viewModel.addProductToOrder("chocolate_02")
+        addProduct(viewModel, "chocolate_02")
         assertEquals(0, viewModel.uiState.value.totalOrderUnits)
         assertTrue(viewModel.uiState.value.orderMessage?.contains("0 unidades") == true)
     }

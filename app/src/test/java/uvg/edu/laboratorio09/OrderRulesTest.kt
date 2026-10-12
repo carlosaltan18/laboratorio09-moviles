@@ -1,9 +1,7 @@
 package uvg.edu.laboratorio09
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import uvg.edu.laboratorio09.domain.addToOrder
@@ -16,7 +14,6 @@ import uvg.edu.laboratorio09.model.Chocolate
 import uvg.edu.laboratorio09.model.OrderLine
 import uvg.edu.laboratorio09.model.OrderResult
 import uvg.edu.laboratorio09.model.toQuetzales
-import uvg.edu.laboratorio09.viewmodel.StoreViewModel
 
 class OrderRulesTest {
     private val products = listOf(
@@ -59,39 +56,6 @@ class OrderRulesTest {
         assertEquals(listOf(OrderLine("b", 1)), removeOrderLine(lines, "a"))
         assertEquals(0, orderTotalCents(products, emptyList()))
         assertEquals("Q0.00", 0.toQuetzales())
-    }
-
-    @Test
-    fun viewModelKeepsOrderOnRejectionAndSearchPreservesCatalog() {
-        val viewModel = StoreViewModel()
-        val originalProducts = viewModel.uiState.value.products
-        repeat(3) { viewModel.addProductToOrder("chocolate_02") }
-        val fullOrder = viewModel.uiState.value
-        assertEquals(3, fullOrder.totalOrderUnits)
-        assertEquals(15600, fullOrder.orderTotalCents)
-        assertEquals(15600, fullOrder.orderSubtotalsCents["chocolate_02"])
-        viewModel.addProductToOrder("chocolate_02")
-        val rejected = viewModel.uiState.value
-        assertSame(fullOrder.orderLines, rejected.orderLines)
-        assertEquals(fullOrder.orderTotalCents, rejected.orderTotalCents)
-        assertNotNull(rejected.orderMessage)
-        viewModel.updateQuery("  cAfÉ  ")
-        assertEquals(
-            originalProducts.filter { it.name.contains("café", ignoreCase = true) },
-            viewModel.uiState.value.filteredProducts
-        )
-        viewModel.updateQuery("no-existe-este-producto")
-        assertTrue(viewModel.uiState.value.filteredProducts.isEmpty())
-        viewModel.clearQuery()
-        assertEquals(originalProducts, viewModel.uiState.value.filteredProducts)
-        assertSame(originalProducts, viewModel.uiState.value.products)
-        assertEquals(fullOrder.orderLines, viewModel.uiState.value.orderLines)
-        viewModel.decreaseProduct("chocolate_02")
-        assertEquals(10400, viewModel.uiState.value.orderTotalCents)
-        viewModel.removeProduct("chocolate_02")
-        assertTrue(viewModel.uiState.value.orderLines.isEmpty())
-        assertTrue(viewModel.uiState.value.orderSubtotalsCents.isEmpty())
-        assertEquals(0, viewModel.uiState.value.orderTotalCents)
     }
 
     @Test

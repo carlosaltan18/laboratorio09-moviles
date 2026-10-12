@@ -8,16 +8,19 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -25,13 +28,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
+import kotlinx.coroutines.launch
 import uvg.edu.laboratorio09.navigation.StoreNavKey
-import uvg.edu.laboratorio09.ui.screens.OrderScreen
+import uvg.edu.laboratorio09.ui.screens.CheckoutScreen
 import uvg.edu.laboratorio09.ui.screens.ChocolateCatalogScreen
 import uvg.edu.laboratorio09.ui.screens.ChocolateDetailScreen
 import uvg.edu.laboratorio09.ui.screens.ChocolatierProfileScreen
-import uvg.edu.laboratorio09.ui.screens.CheckoutScreen
 import uvg.edu.laboratorio09.ui.screens.OrderConfirmationScreen
+import uvg.edu.laboratorio09.ui.screens.OrderScreen
 import uvg.edu.laboratorio09.ui.theme.Laboratorio09Theme
 import uvg.edu.laboratorio09.viewmodel.StoreViewModel
 
@@ -50,9 +54,18 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun ChocolateStoreApp(modifier: Modifier = Modifier) {
     val viewModel: StoreViewModel = viewModel()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val checkoutUiState by viewModel.checkoutUiState.collectAsStateWithLifecycle()
+    val storeState = viewModel.uiState.collectAsStateWithLifecycle()
+    val checkoutState = viewModel.checkoutUiState.collectAsStateWithLifecycle()
+    val uiState by storeState
+    val checkoutUiState by checkoutState
     val orderReceipt by viewModel.orderReceipt.collectAsStateWithLifecycle()
+    val isConfirmEnabled by remember(storeState, checkoutState) {
+        derivedStateOf {
+            checkoutState.value.isFormValid &&
+                storeState.value.totalOrderUnits > 0
+        }
+    }
+    val coroutineScope = rememberCoroutineScope()
     val backStack = rememberNavBackStack(StoreNavKey.Catalog)
 
     val gridState = rememberLazyGridState()
@@ -101,10 +114,12 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
                     chocolates = uiState.filteredProducts,
                     totalProducts = uiState.products.size,
                     query = uiState.query,
+                    catalogSort = uiState.catalogSort,
                     orderUnitCount = uiState.totalOrderUnits,
                     gridState = gridState,
                     onQueryChange = viewModel::updateQuery,
                     onClearQuery = viewModel::clearQuery,
+                    onCatalogSortChange = viewModel::updateCatalogSort,
                     onOrderClick = openOrder,
                     favoriteIds = uiState.favoriteProductIds,
                     onChocolateClick = { productId ->
@@ -158,6 +173,7 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
                     uiState = checkoutUiState,
                     orderUnitCount = uiState.totalOrderUnits,
                     orderTotalCents = uiState.orderTotalCents,
+                    isConfirmEnabled = isConfirmEnabled,
                     onFullNameChange = viewModel::onFullNameChange,
                     onPhoneNumberChange = viewModel::onPhoneNumberChange,
                     onBillingTypeChange = viewModel::onBillingTypeChange,
@@ -165,8 +181,10 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
                     onBusinessNameChange = viewModel::onBusinessNameChange,
                     onPaymentMethodChange = viewModel::onPaymentMethodChange,
                     onConfirm = {
-                        if (viewModel.confirmOrder()) {
-                            backStack.add(StoreNavKey.Confirmation)
+                        coroutineScope.launch {
+                            if (viewModel.confirmOrder()) {
+                                backStack.add(StoreNavKey.Confirmation)
+                            }
                         }
                     },
                     onBack = { backStack.removeLastOrNull() }
