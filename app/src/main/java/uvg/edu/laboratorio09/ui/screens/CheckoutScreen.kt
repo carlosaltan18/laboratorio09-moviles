@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -46,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import uvg.edu.laboratorio09.model.BillingType
 import uvg.edu.laboratorio09.model.CheckoutUiState
 import uvg.edu.laboratorio09.model.PaymentMethod
+import uvg.edu.laboratorio09.model.OrderSubmissionState
 import uvg.edu.laboratorio09.model.toQuetzales
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,6 +58,7 @@ fun CheckoutScreen(
     orderUnitCount: Int,
     orderTotalCents: Int,
     isConfirmEnabled: Boolean,
+    submissionState: OrderSubmissionState,
     onFullNameChange: (String) -> Unit,
     onPhoneNumberChange: (String) -> Unit,
     onBillingTypeChange: (BillingType) -> Unit,
@@ -68,6 +72,7 @@ fun CheckoutScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val nitFocusRequester = remember { FocusRequester() }
+    val isSubmitting = submissionState is OrderSubmissionState.Submitting
 
     fun dismissKeyboard() {
         focusManager.clearFocus()
@@ -215,13 +220,34 @@ fun CheckoutScreen(
 
             Button(
                 onClick = onConfirm,
-                enabled = isConfirmEnabled,
+                enabled = isConfirmEnabled && !isSubmitting,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
             ) {
-                Text("Confirmar pedido (Total ${orderTotalCents.toQuetzales()})")
+                if (isSubmitting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.padding(end = 8.dp).size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Text("Enviando pedido…")
+                } else {
+                    Text(
+                        if (submissionState is OrderSubmissionState.Error) {
+                            "Reintentar"
+                        } else {
+                            "Confirmar pedido (Total ${orderTotalCents.toQuetzales()})"
+                        }
+                    )
+                }
             }
 
-            if (!isConfirmEnabled) {
+            if (submissionState is OrderSubmissionState.Error) {
+                Text(
+                    text = submissionState.userMessage,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+            } else if (!isConfirmEnabled && !isSubmitting) {
                 Text(
                     "Completa los campos obligatorios para continuar.",
                     style = MaterialTheme.typography.bodySmall,

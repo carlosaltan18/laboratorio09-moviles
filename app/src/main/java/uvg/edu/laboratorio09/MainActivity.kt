@@ -18,7 +18,6 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -28,7 +27,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
-import kotlinx.coroutines.launch
+import uvg.edu.laboratorio09.model.OrderSubmissionState
 import uvg.edu.laboratorio09.navigation.StoreNavKey
 import uvg.edu.laboratorio09.ui.screens.CheckoutScreen
 import uvg.edu.laboratorio09.ui.screens.ChocolateCatalogScreen
@@ -59,13 +58,14 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
     val uiState by storeState
     val checkoutUiState by checkoutState
     val orderReceipt by viewModel.orderReceipt.collectAsStateWithLifecycle()
-    val isConfirmEnabled by remember(storeState, checkoutState) {
+    val submissionState by viewModel.orderSubmissionState.collectAsStateWithLifecycle()
+    val isConfirmEnabled by remember(storeState, checkoutState, submissionState) {
         derivedStateOf {
             checkoutState.value.isFormValid &&
-                storeState.value.totalOrderUnits > 0
+                storeState.value.totalOrderUnits > 0 &&
+                submissionState !is OrderSubmissionState.Submitting
         }
     }
-    val coroutineScope = rememberCoroutineScope()
     val backStack = rememberNavBackStack(StoreNavKey.Catalog)
 
     val gridState = rememberLazyGridState()
@@ -174,19 +174,14 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
                     orderUnitCount = uiState.totalOrderUnits,
                     orderTotalCents = uiState.orderTotalCents,
                     isConfirmEnabled = isConfirmEnabled,
+                    submissionState = submissionState,
                     onFullNameChange = viewModel::onFullNameChange,
                     onPhoneNumberChange = viewModel::onPhoneNumberChange,
                     onBillingTypeChange = viewModel::onBillingTypeChange,
                     onNitChange = viewModel::onNitChange,
                     onBusinessNameChange = viewModel::onBusinessNameChange,
                     onPaymentMethodChange = viewModel::onPaymentMethodChange,
-                    onConfirm = {
-                        coroutineScope.launch {
-                            if (viewModel.confirmOrder()) {
-                                backStack.add(StoreNavKey.Confirmation)
-                            }
-                        }
-                    },
+                    onConfirm = viewModel::submitOrder,
                     onBack = { backStack.removeLastOrNull() }
                 )
             }
