@@ -16,6 +16,12 @@ sealed interface StoreNavKey : NavKey {
     data object Order : StoreNavKey
 
     @Serializable
+    data object Orders : StoreNavKey
+
+    @Serializable
+    data class RemoteOrderDetail(val orderId: String) : StoreNavKey
+
+    @Serializable
     data object Checkout : StoreNavKey
 
     @Serializable

@@ -29,6 +29,9 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import uvg.edu.laboratorio09.model.OrderSubmissionState
 import uvg.edu.laboratorio09.navigation.StoreNavKey
+import uvg.edu.laboratorio09.remoteorders.OrdersViewModel
+import uvg.edu.laboratorio09.remoteorders.ui.OrdersScreen
+import uvg.edu.laboratorio09.remoteorders.ui.RemoteOrderDetailScreen
 import uvg.edu.laboratorio09.ui.screens.CheckoutScreen
 import uvg.edu.laboratorio09.ui.screens.ChocolateCatalogScreen
 import uvg.edu.laboratorio09.ui.screens.ChocolateDetailScreen
@@ -53,6 +56,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun ChocolateStoreApp(modifier: Modifier = Modifier) {
     val viewModel: StoreViewModel = viewModel()
+    val ordersViewModel: OrdersViewModel = viewModel()
+    val ordersState by ordersViewModel.ordersState.collectAsStateWithLifecycle()
+    val orderDetailState by ordersViewModel.detailState.collectAsStateWithLifecycle()
     val storeState = viewModel.uiState.collectAsStateWithLifecycle()
     val checkoutState = viewModel.checkoutUiState.collectAsStateWithLifecycle()
     val uiState by storeState
@@ -130,6 +136,10 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
                     onQueryChange = viewModel::updateQuery,
                     onClearQuery = viewModel::clearQuery,
                     onCatalogSortChange = viewModel::updateCatalogSort,
+                    onOrdersClick = {
+                        ordersViewModel.loadOrders()
+                        backStack.add(StoreNavKey.Orders)
+                    },
                     onOrderClick = openOrder,
                     favoriteIds = uiState.favoriteProductIds,
                     onChocolateClick = { productId ->
@@ -137,6 +147,25 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
                         backStack.add(StoreNavKey.Detail(productId))
                     },
                     onToggleFavorite = viewModel::toggleFavorite
+                )
+            }
+            entry<StoreNavKey.Orders> {
+                OrdersScreen(
+                    uiState = ordersState,
+                    onRetry = ordersViewModel::loadOrders,
+                    onOrderClick = { orderId ->
+                        ordersViewModel.loadOrder(orderId)
+                        backStack.add(StoreNavKey.RemoteOrderDetail(orderId))
+                    },
+                    onGoToCatalog = returnToCatalog,
+                    onBack = { backStack.removeLastOrNull() }
+                )
+            }
+            entry<StoreNavKey.RemoteOrderDetail> { key ->
+                RemoteOrderDetailScreen(
+                    uiState = orderDetailState,
+                    onRetry = { ordersViewModel.loadOrder(key.orderId) },
+                    onBack = { backStack.removeLastOrNull() }
                 )
             }
             entry<StoreNavKey.Detail> { key ->
