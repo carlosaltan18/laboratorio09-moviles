@@ -18,7 +18,6 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -28,8 +27,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
-import kotlinx.coroutines.launch
+import uvg.edu.laboratorio09.model.OrderSubmissionState
 import uvg.edu.laboratorio09.navigation.StoreNavKey
+import uvg.edu.laboratorio09.remoteorders.OrdersViewModel
+import uvg.edu.laboratorio09.remoteorders.ui.OrdersScreen
+import uvg.edu.laboratorio09.remoteorders.ui.RemoteOrderDetailScreen
 import uvg.edu.laboratorio09.ui.screens.CheckoutScreen
 import uvg.edu.laboratorio09.ui.screens.ChocolateCatalogScreen
 import uvg.edu.laboratorio09.ui.screens.ChocolateDetailScreen
@@ -54,19 +56,33 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun ChocolateStoreApp(modifier: Modifier = Modifier) {
     val viewModel: StoreViewModel = viewModel()
+    val ordersViewModel: OrdersViewModel = viewModel()
+    val ordersState by ordersViewModel.ordersState.collectAsStateWithLifecycle()
+    val orderDetailState by ordersViewModel.detailState.collectAsStateWithLifecycle()
     val storeState = viewModel.uiState.collectAsStateWithLifecycle()
     val checkoutState = viewModel.checkoutUiState.collectAsStateWithLifecycle()
     val uiState by storeState
     val checkoutUiState by checkoutState
     val orderReceipt by viewModel.orderReceipt.collectAsStateWithLifecycle()
-    val isConfirmEnabled by remember(storeState, checkoutState) {
+    val submissionState by viewModel.orderSubmissionState.collectAsStateWithLifecycle()
+    val isConfirmEnabled by remember(storeState, checkoutState, submissionState) {
         derivedStateOf {
             checkoutState.value.isFormValid &&
-                storeState.value.totalOrderUnits > 0
+                storeState.value.totalOrderUnits > 0 &&
+                submissionState !is OrderSubmissionState.Submitting
         }
     }
-    val coroutineScope = rememberCoroutineScope()
     val backStack = rememberNavBackStack(StoreNavKey.Catalog)
+
+    LaunchedEffect(submissionState) {
+        if (
+            submissionState is OrderSubmissionState.Success &&
+            backStack.lastOrNull() == StoreNavKey.Checkout
+        ) {
+            backStack.add(StoreNavKey.Confirmation)
+            viewModel.consumeSubmissionSuccess()
+        }
+    }
 
     val gridState = rememberLazyGridState()
     var lastScrollQuery by rememberSaveable { mutableStateOf(uiState.query) }
@@ -120,6 +136,10 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
                     onQueryChange = viewModel::updateQuery,
                     onClearQuery = viewModel::clearQuery,
                     onCatalogSortChange = viewModel::updateCatalogSort,
+                    onOrdersClick = {
+                        ordersViewModel.loadOrders()
+                        backStack.add(StoreNavKey.Orders)
+                    },
                     onOrderClick = openOrder,
                     favoriteIds = uiState.favoriteProductIds,
                     onChocolateClick = { productId ->
@@ -127,6 +147,25 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
                         backStack.add(StoreNavKey.Detail(productId))
                     },
                     onToggleFavorite = viewModel::toggleFavorite
+                )
+            }
+            entry<StoreNavKey.Orders> {
+                OrdersScreen(
+                    uiState = ordersState,
+                    onRetry = ordersViewModel::loadOrders,
+                    onOrderClick = { orderId ->
+                        ordersViewModel.loadOrder(orderId)
+                        backStack.add(StoreNavKey.RemoteOrderDetail(orderId))
+                    },
+                    onGoToCatalog = returnToCatalog,
+                    onBack = { backStack.removeLastOrNull() }
+                )
+            }
+            entry<StoreNavKey.RemoteOrderDetail> { key ->
+                RemoteOrderDetailScreen(
+                    uiState = orderDetailState,
+                    onRetry = { ordersViewModel.loadOrder(key.orderId) },
+                    onBack = { backStack.removeLastOrNull() }
                 )
             }
             entry<StoreNavKey.Detail> { key ->
@@ -174,19 +213,14 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
                     orderUnitCount = uiState.totalOrderUnits,
                     orderTotalCents = uiState.orderTotalCents,
                     isConfirmEnabled = isConfirmEnabled,
+                    submissionState = submissionState,
                     onFullNameChange = viewModel::onFullNameChange,
                     onPhoneNumberChange = viewModel::onPhoneNumberChange,
                     onBillingTypeChange = viewModel::onBillingTypeChange,
                     onNitChange = viewModel::onNitChange,
                     onBusinessNameChange = viewModel::onBusinessNameChange,
                     onPaymentMethodChange = viewModel::onPaymentMethodChange,
-                    onConfirm = {
-                        coroutineScope.launch {
-                            if (viewModel.confirmOrder()) {
-                                backStack.add(StoreNavKey.Confirmation)
-                            }
-                        }
-                    },
+                    onConfirm = viewModel::submitOrder,
                     onBack = { backStack.removeLastOrNull() }
                 )
             }
