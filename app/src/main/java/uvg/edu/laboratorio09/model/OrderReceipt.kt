@@ -2,6 +2,7 @@ package uvg.edu.laboratorio09.model
 
 data class OrderReceipt(
     val folio: String,
+    val serverId: String,
     val customerName: String,
     val phoneNumber: String,
     val billingType: BillingType,

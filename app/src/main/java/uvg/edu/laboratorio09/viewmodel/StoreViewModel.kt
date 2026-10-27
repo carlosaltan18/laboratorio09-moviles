@@ -4,7 +4,7 @@ import android.app.Application
 import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.async
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.SharingStarted
@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.SerializationException
+import retrofit2.HttpException
 import uvg.edu.laboratorio09.data.ChocolateCatalogFactory
 import uvg.edu.laboratorio09.data.local.FavoriteEntity
 import uvg.edu.laboratorio09.data.local.OrderLineEntity
@@ -41,8 +43,12 @@ import uvg.edu.laboratorio09.model.Chocolatier
 import uvg.edu.laboratorio09.model.OrderLine
 import uvg.edu.laboratorio09.model.OrderReceipt
 import uvg.edu.laboratorio09.model.OrderResult
+import uvg.edu.laboratorio09.model.OrderSubmissionState
 import uvg.edu.laboratorio09.model.PaymentMethod
 import uvg.edu.laboratorio09.model.StoreUiState
+import uvg.edu.laboratorio09.remote.OrderNetwork
+import uvg.edu.laboratorio09.remote.dto.CreateOrderRequest
+import uvg.edu.laboratorio09.remote.dto.OrderLineDto
 import java.io.IOException
 
 private val originalChocolates = listOf(
@@ -159,6 +165,12 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
     private val _orderReceipt = MutableStateFlow<OrderReceipt?>(null)
     val orderReceipt: StateFlow<OrderReceipt?> = _orderReceipt.asStateFlow()
 
+    private val _orderSubmissionState = MutableStateFlow<OrderSubmissionState>(
+        OrderSubmissionState.Idle
+    )
+    val orderSubmissionState: StateFlow<OrderSubmissionState> =
+        _orderSubmissionState.asStateFlow()
+
     private var nextOrderNumber = 1
 
     fun onFullNameChange(value: String) {
@@ -205,11 +217,32 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    suspend fun confirmOrder(): Boolean = viewModelScope.async {
-        mutationMutex.withLock { confirmPersistedOrder() }
-    }.await()
+    fun submitOrder() {
+        if (_orderSubmissionState.value is OrderSubmissionState.Submitting) return
 
-    private suspend fun confirmPersistedOrder(): Boolean {
+        _orderSubmissionState.value = OrderSubmissionState.Submitting
+        viewModelScope.launch {
+            mutationMutex.withLock {
+                submitPersistedOrder()
+            }
+        }
+    }
+
+    suspend fun confirmOrder(): Boolean {
+        submitOrder()
+        return orderSubmissionState.first { state ->
+            state !is OrderSubmissionState.Idle &&
+                state !is OrderSubmissionState.Submitting
+        } is OrderSubmissionState.Success
+    }
+
+    fun consumeSubmissionSuccess() {
+        if (_orderSubmissionState.value is OrderSubmissionState.Success) {
+            _orderSubmissionState.value = OrderSubmissionState.Idle
+        }
+    }
+
+    private suspend fun submitPersistedOrder() {
         val currentCheckout = _checkoutUiState.value
         val validatedCheckout = currentCheckout.revalidated().copy(
             fullNameTouched = true,
@@ -230,12 +263,53 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
             if (availabilityError != null) {
                 _memoryState.update { it.copy(orderMessage = availabilityError) }
             }
-            return false
+            _orderSubmissionState.value = OrderSubmissionState.Error(
+                availabilityError ?: "Revisa los campos obligatorios antes de continuar."
+            )
+            return
+        }
+
+        val request = CreateOrderRequest(
+            createdAtEpochMillis = System.currentTimeMillis(),
+            customerName = "Anonymous customer",
+            billingType = validatedCheckout.billingType.name,
+            paymentMethod = "NOT_STORED",
+            totalCents = currentOrder.orderTotalCents,
+            status = "CREATED",
+            lines = currentOrder.orderLines.map { line ->
+                val product = currentOrder.products.first { it.id == line.productId }
+                OrderLineDto(
+                    productId = product.id,
+                    productName = product.name,
+                    unitPriceCents = product.priceCents,
+                    quantity = line.quantity,
+                    subtotalCents = lineSubtotalCents(product, line)
+                )
+            }
+        )
+
+        val remoteOrder = try {
+            OrderNetwork.api.createOrder(request)
+        } catch (error: IOException) {
+            failSubmission("No pudimos conectarnos. Revisa tu conexión e intenta nuevamente.")
+            return
+        } catch (error: HttpException) {
+            failSubmission("El servidor no pudo procesar el pedido. Intenta nuevamente.")
+            return
+        } catch (error: SerializationException) {
+            failSubmission("La respuesta del servidor no tiene el formato esperado.")
+            return
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            failSubmission("Ocurrió un error inesperado. Intenta nuevamente.")
+            return
         }
 
         val folio = "#ORD-${nextOrderNumber.toString().padStart(5, '0')}"
         _orderReceipt.value = OrderReceipt(
             folio = folio,
+            serverId = remoteOrder.id,
             customerName = validatedCheckout.fullName.trim(),
             phoneNumber = validatedCheckout.phoneNumber.trim(),
             billingType = validatedCheckout.billingType,
@@ -257,7 +331,11 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
         _memoryState.update { it.copy(products = updatedProducts, orderMessage = null) }
         nextOrderNumber += 1
         _checkoutUiState.value = CheckoutUiState().revalidated()
-        return true
+        _orderSubmissionState.value = OrderSubmissionState.Success(remoteOrder.id)
+    }
+
+    private fun failSubmission(userMessage: String) {
+        _orderSubmissionState.value = OrderSubmissionState.Error(userMessage)
     }
 
     fun updateQuery(query: String) {

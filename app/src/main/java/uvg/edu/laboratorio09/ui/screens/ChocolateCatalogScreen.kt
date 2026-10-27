@@ -49,6 +49,7 @@ fun ChocolateCatalogScreen(
     onChocolateClick: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
     onOrderClick: () -> Unit,
+    onOrdersClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -76,6 +77,9 @@ fun ChocolateCatalogScreen(
         }
     ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            TextButton(onClick = onOrdersClick, modifier = Modifier.padding(horizontal = 8.dp)) {
+                Text("Mis pedidos")
+            }
             OutlinedTextField(
                 value = query,
                 onValueChange = onQueryChange,

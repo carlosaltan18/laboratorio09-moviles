@@ -14,8 +14,15 @@ ksp = "2.2.10-2.0.2"
 room3 = "3.0.3"
 sqlite = "2.7.1"
 datastorePreferences = "1.2.1"
+retrofit = "3.0.0"
+coroutinesTest = "1.10.2"
+mockk = "1.14.6"
+uiautomator = "2.3.0"
 
 [libraries]
+androidx-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }
+mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
@@ -39,6 +46,8 @@ androidx-room3-runtime = { group = "androidx.room3", name = "room3-runtime", ver
 androidx-room3-compiler = { group = "androidx.room3", name = "room3-compiler", version.ref = "room3" }
 androidx-sqlite-framework = { group = "androidx.sqlite", name = "sqlite-framework", version.ref = "sqlite" }
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastorePreferences" }
+retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
+retrofit-kotlinx-serialization = { group = "com.squareup.retrofit2", name = "converter-kotlinx-serialization", version.ref = "retrofit" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
