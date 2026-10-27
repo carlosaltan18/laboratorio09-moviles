@@ -54,7 +54,6 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
     val checkoutUiState by viewModel.checkoutUiState.collectAsStateWithLifecycle()
     val orderReceipt by viewModel.orderReceipt.collectAsStateWithLifecycle()
     val backStack = rememberNavBackStack(StoreNavKey.Catalog)
-
     val gridState = rememberLazyGridState()
     var lastScrollQuery by rememberSaveable { mutableStateOf(uiState.query) }
     // Vive por encima de NavDisplay: regresar o rotar no reinicia el scroll.
