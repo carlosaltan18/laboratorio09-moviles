@@ -29,7 +29,7 @@ class RemoteOrdersLiveTest {
         fun find(text: String): UiObject2 {
             val node = device.wait(Until.findObject(By.text(text)), 30_000)
             assertNotNull("No aparecio: $text", node)
-            return node!!
+            return requireNotNull(node)
         }
         fun capture(name: String) {
             Thread.sleep(900)

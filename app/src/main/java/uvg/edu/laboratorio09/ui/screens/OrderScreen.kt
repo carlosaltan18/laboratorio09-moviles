@@ -43,6 +43,7 @@ fun OrderScreen(
     subtotalsCents: Map<String, Int>,
     totalCents: Int,
     message: String?,
+    reservingProductIds: Set<String>,
     onIncrease: (String) -> Unit,
     onDecrease: (String) -> Unit,
     onRemove: (String) -> Unit,
@@ -103,14 +104,18 @@ fun OrderScreen(
                                         Icon(Icons.Filled.Remove, "Disminuir ${product.name}")
                                     }
                                     Text("Cantidad: ${line.quantity}")
+                                    if (product.id in reservingProductIds) {
+                                        Text("Reservando…")
+                                    }
                                     IconButton(
                                         onClick = { onIncrease(product.id) },
+                                        enabled = product.stock > 0 && product.id !in reservingProductIds,
                                         modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
                                     ) {
                                         Icon(Icons.Filled.Add, "Aumentar ${product.name}")
                                     }
                                 }
-                                Text("Subtotal ${subtotalsCents.getValue(product.id).toQuetzales()}")
+                                Text("Subtotal ${(subtotalsCents[product.id] ?: 0).toQuetzales()}")
                                 TextButton(
                                     onClick = { onRemove(product.id) },
                                     modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)

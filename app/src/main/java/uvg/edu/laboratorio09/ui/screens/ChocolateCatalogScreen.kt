@@ -1,21 +1,24 @@
 package uvg.edu.laboratorio09.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -27,15 +30,18 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-import uvg.edu.laboratorio09.model.Chocolate
+import uvg.edu.laboratorio09.model.CatalogLoadState
 import uvg.edu.laboratorio09.model.CatalogSort
+import uvg.edu.laboratorio09.model.Chocolate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChocolateCatalogScreen(
+    catalogLoadState: CatalogLoadState,
     chocolates: List<Chocolate>,
     totalProducts: Int,
     query: String,
@@ -46,6 +52,7 @@ fun ChocolateCatalogScreen(
     onQueryChange: (String) -> Unit,
     onClearQuery: () -> Unit,
     onCatalogSortChange: (CatalogSort) -> Unit,
+    onRetryCatalog: () -> Unit,
     onChocolateClick: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
     onOrderClick: () -> Unit,
@@ -56,18 +63,21 @@ fun ChocolateCatalogScreen(
     val showScrollToTop by remember(gridState) {
         derivedStateOf { gridState.firstVisibleItemIndex > 4 }
     }
+
     Scaffold(
         modifier = modifier,
         topBar = {
             TopAppBar(
                 title = { Text("Chocolatería") },
                 actions = {
-                    TextButton(onClick = onOrderClick) { Text("Pedido · $orderUnitCount") }
+                    TextButton(onClick = onOrderClick) {
+                        Text("Pedido · $orderUnitCount")
+                    }
                 }
             )
         },
         floatingActionButton = {
-            if (showScrollToTop) {
+            if (catalogLoadState is CatalogLoadState.Content && showScrollToTop) {
                 FloatingActionButton(onClick = {
                     scope.launch { gridState.animateScrollToItem(0) }
                 }) {
@@ -76,64 +86,141 @@ fun ChocolateCatalogScreen(
             }
         }
     ) { innerPadding ->
-        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            TextButton(onClick = onOrdersClick, modifier = Modifier.padding(horizontal = 8.dp)) {
-                Text("Mis pedidos")
-            }
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                label = { Text("Buscar productos") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+        when (catalogLoadState) {
+            CatalogLoadState.Loading -> CatalogStatus(
+                text = "Cargando catálogo…",
+                modifier = Modifier.padding(innerPadding),
+                loading = true
             )
-            Text(
-                "${chocolates.size} de $totalProducts productos",
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+
+            is CatalogLoadState.Error -> CatalogStatus(
+                text = catalogLoadState.message,
+                modifier = Modifier.padding(innerPadding),
+                actionLabel = "Reintentar",
+                onAction = onRetryCatalog
             )
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                CatalogSort.entries.forEach { sort ->
-                    FilterChip(
-                        selected = catalogSort == sort,
-                        onClick = { onCatalogSortChange(sort) },
-                        label = {
-                            Text(
-                                when (sort) {
-                                    CatalogSort.ORIGINAL -> "Original"
-                                    CatalogSort.NAME -> "Nombre"
-                                    CatalogSort.PRICE -> "Precio"
-                                }
-                            )
-                        }
-                    )
-                }
+
+            is CatalogLoadState.Content -> CatalogContent(
+                chocolates = chocolates,
+                totalProducts = totalProducts,
+                query = query,
+                catalogSort = catalogSort,
+                favoriteIds = favoriteIds,
+                gridState = gridState,
+                onQueryChange = onQueryChange,
+                onClearQuery = onClearQuery,
+                onCatalogSortChange = onCatalogSortChange,
+                onChocolateClick = onChocolateClick,
+                onToggleFavorite = onToggleFavorite,
+                onOrdersClick = onOrdersClick,
+                modifier = Modifier.padding(innerPadding)
+            )
+        }
+    }
+}
+
+@Composable
+private fun CatalogContent(
+    chocolates: List<Chocolate>,
+    totalProducts: Int,
+    query: String,
+    catalogSort: CatalogSort,
+    favoriteIds: Set<String>,
+    gridState: LazyGridState,
+    onQueryChange: (String) -> Unit,
+    onClearQuery: () -> Unit,
+    onCatalogSortChange: (CatalogSort) -> Unit,
+    onChocolateClick: (String) -> Unit,
+    onToggleFavorite: (String) -> Unit,
+    onOrdersClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxSize()) {
+        TextButton(onClick = onOrdersClick, modifier = Modifier.padding(horizontal = 8.dp)) {
+            Text("Mis pedidos")
+        }
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            label = { Text("Buscar productos") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+        )
+        Text(
+            "${chocolates.size} de $totalProducts productos",
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            CatalogSort.entries.forEach { sort ->
+                FilterChip(
+                    selected = catalogSort == sort,
+                    onClick = { onCatalogSortChange(sort) },
+                    label = {
+                        Text(
+                            when (sort) {
+                                CatalogSort.ORIGINAL -> "Original"
+                                CatalogSort.NAME -> "Nombre"
+                                CatalogSort.PRICE -> "Precio"
+                            }
+                        )
+                    }
+                )
             }
-            if (query.isNotEmpty()) {
-                TextButton(onClick = onClearQuery, modifier = Modifier.padding(horizontal = 8.dp)) {
-                    Text("Limpiar búsqueda")
-                }
+        }
+        if (query.isNotEmpty()) {
+            TextButton(onClick = onClearQuery, modifier = Modifier.padding(horizontal = 8.dp)) {
+                Text("Limpiar búsqueda")
             }
-            if (chocolates.isEmpty()) {
-                Text("No encontramos productos.", modifier = Modifier.padding(16.dp))
+        }
+        if (chocolates.isEmpty()) {
+            Text("No encontramos productos.", modifier = Modifier.padding(16.dp))
+        }
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            state = gridState,
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.weight(1f).fillMaxWidth()
+        ) {
+            items(items = chocolates, key = { it.id }) { chocolate ->
+                ProductCard(
+                    chocolate = chocolate,
+                    isFavorite = chocolate.id in favoriteIds,
+                    onToggleFavorite = { onToggleFavorite(chocolate.id) },
+                    onChocolateClick = { onChocolateClick(chocolate.id) }
+                )
             }
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                state = gridState,
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.weight(1f).fillMaxWidth()
-            ) {
-                items(items = chocolates, key = { it.id }) { chocolate ->
-                    ProductCard(
-                        chocolate = chocolate,
-                        isFavorite = chocolate.id in favoriteIds,
-                        onToggleFavorite = { onToggleFavorite(chocolate.id) },
-                        onChocolateClick = { onChocolateClick(chocolate.id) }
-                    )
+        }
+    }
+}
+
+@Composable
+private fun CatalogStatus(
+    text: String,
+    modifier: Modifier = Modifier,
+    loading: Boolean = false,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null
+) {
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (loading) {
+                CircularProgressIndicator()
+            }
+            Text(text)
+            if (actionLabel != null && onAction != null) {
+                Button(onClick = onAction) {
+                    Text(actionLabel)
                 }
             }
         }

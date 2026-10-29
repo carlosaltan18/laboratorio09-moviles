@@ -43,7 +43,16 @@ abstract class StorePersistenceTestBase {
     }
 
     protected fun createViewModel(): StoreViewModel {
-        val viewModel = StoreViewModel(application)
+        val container = (application as StoreApplication).container
+        val viewModel = StoreViewModel(
+            authenticationRepository = container.authenticationRepository,
+            productRepository = container.productRepository,
+            favoriteRepository = container.favoriteRepository,
+            cartRepository = container.cartRepository,
+            catalogPreferencesRepository = container.catalogPreferencesRepository,
+            remoteOrderRepository = container.remoteOrderRepository,
+            chocolatierRepository = container.chocolatierRepository
+        )
         stores += ViewModelStore().apply { put("store", viewModel) }
         collectors.launch { viewModel.uiState.collect {} }
         return viewModel
