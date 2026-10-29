@@ -1,11 +1,13 @@
 package uvg.edu.laboratorio09.model
 
 data class StoreUiState(
-    val products: List<Chocolate>,
-    val profiles: List<Chocolatier>,
+    val products: List<Chocolate> = emptyList(),
+    val profiles: List<Chocolatier> = emptyList(),
     val favoriteProductIds: Set<String> = emptySet(),
     val query: String = "",
     val catalogSort: CatalogSort = CatalogSort.ORIGINAL,
+    val catalogLoadState: CatalogLoadState = CatalogLoadState.Loading,
+    val reservingProductIds: Set<String> = emptySet(),
     val orderLines: List<OrderLine> = emptyList(),
     val orderMessage: String? = null,
     val orderSubtotalsCents: Map<String, Int> = emptyMap(),

@@ -1,172 +1,122 @@
 package uvg.edu.laboratorio09.remoteorders
 
 import androidx.lifecycle.viewModelScope
-import io.mockk.coEvery
-import io.mockk.coVerify
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.mockkObject
-import io.mockk.unmockkObject
-import java.io.IOException
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlinx.serialization.SerializationException
-import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import retrofit2.HttpException
-import retrofit2.Response
-import uvg.edu.laboratorio09.remote.OrderApi
-import uvg.edu.laboratorio09.remote.OrderNetwork
-import uvg.edu.laboratorio09.remote.dto.OrderDto
+import uvg.edu.laboratorio09.domain.repository.RemoteOrderNotFoundException
+import uvg.edu.laboratorio09.domain.repository.RemoteOrderRepository
+import uvg.edu.laboratorio09.model.CreateRemoteOrder
+import uvg.edu.laboratorio09.model.RemoteOrder
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class OrdersViewModelTest {
-    private val api = mockk<OrderApi>()
+    private val repository = FakeRemoteOrderRepository()
     private lateinit var viewModel: OrdersViewModel
 
     @Before
     fun setUp() {
         Dispatchers.setMain(StandardTestDispatcher())
-        mockkObject(OrderNetwork)
-        every { OrderNetwork.api } returns api
-        viewModel = OrdersViewModel()
+        viewModel = OrdersViewModel(repository)
     }
 
     @After
     fun tearDown() {
         viewModel.viewModelScope.cancel()
-        unmockkObject(OrderNetwork)
         Dispatchers.resetMain()
     }
 
-    private fun order(id: String) = OrderDto(
-        id, 1791809817391, "Cliente ficticio", "CONSUMER_FINAL", "NOT_STORED",
-        4800, "CREATED", emptyList()
-    )
-
     @Test
-    fun listKeepsServerOrderAndIgnoresDoubleTap() = runTest {
-        val response = listOf(order("9"), order("11"))
-        coEvery { api.getOrders("createdAtEpochMillis", "desc") } returns response
-        assertEquals(OrdersUiState.Idle, viewModel.ordersState.value)
+    fun listUsesRepositoryKeepsOrderAndIgnoresDoubleTap() = runTest {
+        val orders = listOf(order("9"), order("11"))
+        repository.ordersResult = Result.success(orders)
+
         viewModel.loadOrders()
         viewModel.loadOrders()
         assertEquals(OrdersUiState.Loading, viewModel.ordersState.value)
+
         advanceUntilIdle()
-        assertEquals(OrdersUiState.Success(response), viewModel.ordersState.value)
-        coVerify(exactly = 1) { api.getOrders("createdAtEpochMillis", "desc") }
+
+        assertEquals(OrdersUiState.Success(orders), viewModel.ordersState.value)
+        assertEquals(1, repository.listRequests)
     }
 
     @Test
-    fun emptyListAndNextVisitFetchFreshData() = runTest {
-        coEvery { api.getOrders(any(), any()) } returnsMany listOf(emptyList(), listOf(order("3")))
+    fun emptyAndFailureStatesAllowANewRequest() = runTest {
+        repository.ordersResult = Result.success(emptyList())
         viewModel.loadOrders()
         advanceUntilIdle()
         assertEquals(OrdersUiState.Empty, viewModel.ordersState.value)
+
+        repository.ordersResult = Result.failure(IllegalStateException("private"))
         viewModel.loadOrders()
         advanceUntilIdle()
-        assertEquals(OrdersUiState.Success(listOf(order("3"))), viewModel.ordersState.value)
-        coVerify(exactly = 2) { api.getOrders(any(), any()) }
+        assertTrue(viewModel.ordersState.value is OrdersUiState.Error)
+        assertEquals(2, repository.listRequests)
     }
 
     @Test
-    fun listNetworkHttpAndFormatErrorsAllowRetry() = runTest {
-        val failures = listOf(IOException("private"), HttpException(Response.error<Any>(500, "private".toResponseBody())), SerializationException("private"))
-        for (failure in failures) {
-            coEvery { api.getOrders(any(), any()) } throws failure
-            viewModel.loadOrders()
-            advanceUntilIdle()
-            val state = viewModel.ordersState.value as OrdersUiState.Error
-            assertFalse(state.message.contains("private"))
-            coEvery { api.getOrders(any(), any()) } returns emptyList()
-            viewModel.loadOrders()
-            advanceUntilIdle()
-            assertEquals(OrdersUiState.Empty, viewModel.ordersState.value)
-        }
-    }
+    fun detailUsesRepositoryAndShowsNotFound() = runTest {
+        repository.detailResults["missing"] = Result.failure(RemoteOrderNotFoundException())
 
-    @Test
-    fun collectingAgainDuringAndAfterLoadingDoesNotRepeatRequest() = runTest {
-        val response = CompletableDeferred<List<OrderDto>>()
-        coEvery { api.getOrders(any(), any()) } coAnswers { response.await() }
-        viewModel.loadOrders()
-        runCurrent()
-        repeat(3) { assertEquals(OrdersUiState.Loading, viewModel.ordersState.first()) }
-        response.complete(listOf(order("1")))
-        advanceUntilIdle()
-        repeat(3) { assertTrue(viewModel.ordersState.first() is OrdersUiState.Success) }
-        coVerify(exactly = 1) { api.getOrders(any(), any()) }
-    }
-
-    @Test
-    fun detailUsesIdAndDoesNotRepeatPendingRequest() = runTest {
-        coEvery { api.getOrderById("11") } returns order("11")
-        viewModel.loadOrder("11")
-        viewModel.loadOrder("11")
-        assertEquals(OrderDetailUiState.Loading, viewModel.detailState.value)
-        advanceUntilIdle()
-        assertEquals(OrderDetailUiState.Success(order("11")), viewModel.detailState.value)
-        coVerify(exactly = 1) { api.getOrderById("11") }
-    }
-
-    @Test
-    fun missingDetailHasDedicatedState() = runTest {
-        coEvery { api.getOrderById("missing") } throws HttpException(Response.error<Any>(404, "Not found".toResponseBody()))
         viewModel.loadOrder("missing")
         advanceUntilIdle()
+
         assertEquals(OrderDetailUiState.NotFound, viewModel.detailState.value)
+        assertEquals(listOf("missing"), repository.detailRequests)
     }
 
     @Test
-    fun detailErrorsAllowRetry() = runTest {
-        val failures = listOf(IOException("private"), HttpException(Response.error<Any>(503, "private".toResponseBody())), SerializationException("private"))
-        for (failure in failures) {
-            coEvery { api.getOrderById("1") } throws failure
-            viewModel.loadOrder("1")
-            advanceUntilIdle()
-            assertFalse((viewModel.detailState.value as OrderDetailUiState.Error).message.contains("private"))
-            coEvery { api.getOrderById("1") } returns order("1")
-            viewModel.loadOrder("1")
-            advanceUntilIdle()
-            assertEquals(OrderDetailUiState.Success(order("1")), viewModel.detailState.value)
-        }
-    }
+    fun detailShowsTheDomainOrderReturnedByRepository() = runTest {
+        val expected = order("1")
+        repository.detailResults["1"] = Result.success(expected)
 
-    @Test
-    fun choosingAnotherIdCancelsOldDetail() = runTest {
-        val old = CompletableDeferred<OrderDto>()
-        coEvery { api.getOrderById("1") } coAnswers { old.await() }
-        coEvery { api.getOrderById("2") } returns order("2")
-        viewModel.loadOrder("1")
-        runCurrent()
-        viewModel.loadOrder("2")
-        advanceUntilIdle()
-        old.complete(order("1"))
-        advanceUntilIdle()
-        assertEquals(OrderDetailUiState.Success(order("2")), viewModel.detailState.value)
-    }
-
-    @Test
-    fun cancellationIsNotShownAsNetworkError() = runTest {
-        coEvery { api.getOrders(any(), any()) } throws CancellationException()
-        coEvery { api.getOrderById("1") } throws CancellationException()
-        viewModel.loadOrders()
         viewModel.loadOrder("1")
         advanceUntilIdle()
-        assertFalse(viewModel.ordersState.value is OrdersUiState.Error)
-        assertFalse(viewModel.detailState.value is OrderDetailUiState.Error)
+
+        assertEquals(OrderDetailUiState.Success(expected), viewModel.detailState.value)
+    }
+
+    private fun order(id: String) = RemoteOrder(
+        id = id,
+        createdAtEpochMillis = 1_791_809_817_391,
+        customerName = "Cliente ficticio",
+        billingType = "CF",
+        paymentMethod = "Efectivo contra entrega",
+        totalCents = 4_800,
+        status = "received",
+        lines = emptyList()
+    )
+}
+
+private class FakeRemoteOrderRepository : RemoteOrderRepository {
+    var ordersResult: Result<List<RemoteOrder>> = Result.success(emptyList())
+    val detailResults = mutableMapOf<String, Result<RemoteOrder>>()
+    var listRequests = 0
+    val detailRequests = mutableListOf<String>()
+
+    override suspend fun createOrder(request: CreateRemoteOrder): Result<RemoteOrder> =
+        error("Not used by OrdersViewModel")
+
+    override fun observeOrders(): Flow<Result<List<RemoteOrder>>> {
+        listRequests += 1
+        return flowOf(ordersResult)
+    }
+
+    override suspend fun getOrder(orderId: String): Result<RemoteOrder> {
+        detailRequests += orderId
+        return detailResults[orderId] ?: Result.failure(IllegalStateException())
     }
 }

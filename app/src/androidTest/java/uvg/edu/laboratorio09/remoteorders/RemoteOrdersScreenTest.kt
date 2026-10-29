@@ -7,17 +7,17 @@ import androidx.compose.ui.test.performClick
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
-import uvg.edu.laboratorio09.remote.dto.OrderDto
-import uvg.edu.laboratorio09.remote.dto.OrderLineDto
+import uvg.edu.laboratorio09.model.RemoteOrder
+import uvg.edu.laboratorio09.model.RemoteOrderLine
 import uvg.edu.laboratorio09.remoteorders.ui.OrdersScreen
 import uvg.edu.laboratorio09.remoteorders.ui.RemoteOrderDetailScreen
 import uvg.edu.laboratorio09.ui.theme.Laboratorio09Theme
 
 class RemoteOrdersScreenTest {
     @get:Rule val compose = createComposeRule()
-    private val order = OrderDto(
+    private val order = RemoteOrder(
         "11", 1791809817391, "Cliente ficticio", "CONSUMER_FINAL", "NOT_STORED",
-        5200, "CREATED", listOf(OrderLineDto("old-product", "Nombre historico", 2600, 2, 5200))
+        5200, "CREATED", listOf(RemoteOrderLine("old-product", "Nombre historico", 2600, 2, 5200))
     )
 
     @Test fun loadingListIsVisible() {

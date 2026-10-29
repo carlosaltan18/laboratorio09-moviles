@@ -39,6 +39,7 @@ import uvg.edu.laboratorio09.ui.screens.ChocolatierProfileScreen
 import uvg.edu.laboratorio09.ui.screens.OrderConfirmationScreen
 import uvg.edu.laboratorio09.ui.screens.OrderScreen
 import uvg.edu.laboratorio09.ui.theme.Laboratorio09Theme
+import uvg.edu.laboratorio09.viewmodel.ProductDetailViewModel
 import uvg.edu.laboratorio09.viewmodel.StoreViewModel
 
 class MainActivity : ComponentActivity() {
@@ -55,8 +56,10 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun ChocolateStoreApp(modifier: Modifier = Modifier) {
-    val viewModel: StoreViewModel = viewModel()
-    val ordersViewModel: OrdersViewModel = viewModel()
+    val viewModel: StoreViewModel = viewModel(factory = StoreViewModel.Factory)
+    val ordersViewModel: OrdersViewModel = viewModel(factory = OrdersViewModel.Factory)
+    val productDetailViewModel: ProductDetailViewModel =
+        viewModel(factory = ProductDetailViewModel.Factory)
     val ordersState by ordersViewModel.ordersState.collectAsStateWithLifecycle()
     val orderDetailState by ordersViewModel.detailState.collectAsStateWithLifecycle()
     val storeState = viewModel.uiState.collectAsStateWithLifecycle()
@@ -64,12 +67,14 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
     val uiState by storeState
     val checkoutUiState by checkoutState
     val orderReceipt by viewModel.orderReceipt.collectAsStateWithLifecycle()
-    val submissionState by viewModel.orderSubmissionState.collectAsStateWithLifecycle()
-    val isConfirmEnabled by remember(storeState, checkoutState, submissionState) {
+    val submissionStateSource = viewModel.orderSubmissionState.collectAsStateWithLifecycle()
+    val submissionState by submissionStateSource
+    val productDetailState by productDetailViewModel.uiState.collectAsStateWithLifecycle()
+    val isConfirmEnabled by remember(storeState, checkoutState, submissionStateSource) {
         derivedStateOf {
             checkoutState.value.isFormValid &&
                 storeState.value.totalOrderUnits > 0 &&
-                submissionState !is OrderSubmissionState.Submitting
+                submissionStateSource.value !is OrderSubmissionState.Submitting
         }
     }
     val backStack = rememberNavBackStack(StoreNavKey.Catalog)
@@ -86,7 +91,7 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
 
     val gridState = rememberLazyGridState()
     var lastScrollQuery by rememberSaveable { mutableStateOf(uiState.query) }
-    // Vive por encima de NavDisplay: regresar o rotar no reinicia el scroll.
+    // Keeping this above NavDisplay preserves scrolling across navigation and rotation.
     LaunchedEffect(uiState.query) {
         if (lastScrollQuery != uiState.query) {
             gridState.scrollToItem(0)
@@ -127,6 +132,7 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
         entryProvider = entryProvider {
             entry<StoreNavKey.Catalog> {
                 ChocolateCatalogScreen(
+                    catalogLoadState = uiState.catalogLoadState,
                     chocolates = uiState.filteredProducts,
                     totalProducts = uiState.products.size,
                     query = uiState.query,
@@ -136,6 +142,7 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
                     onQueryChange = viewModel::updateQuery,
                     onClearQuery = viewModel::clearQuery,
                     onCatalogSortChange = viewModel::updateCatalogSort,
+                    onRetryCatalog = viewModel::retryCatalog,
                     onOrdersClick = {
                         ordersViewModel.loadOrders()
                         backStack.add(StoreNavKey.Orders)
@@ -144,6 +151,7 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
                     favoriteIds = uiState.favoriteProductIds,
                     onChocolateClick = { productId ->
                         viewModel.clearOrderMessage()
+                        productDetailViewModel.clearTestResult()
                         backStack.add(StoreNavKey.Detail(productId))
                     },
                     onToggleFavorite = viewModel::toggleFavorite
@@ -179,7 +187,13 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
                         quantityInOrder = uiState.orderLines.find { it.productId == product.id }?.quantity ?: 0,
                         orderUnitCount = uiState.totalOrderUnits,
                         orderMessage = uiState.orderMessage,
+                        isReserving = product.id in uiState.reservingProductIds,
+                        isConcurrencyTesting = productDetailState.isTesting,
+                        concurrencyTestResult = productDetailState.testResult,
                         onAddToOrder = { viewModel.addProductToOrder(product.id) },
+                        onConcurrencyTest = {
+                            productDetailViewModel.onConcurrencyTest(product.id)
+                        },
                         onOrderClick = openOrder,
                         isFavorite = product.id in uiState.favoriteProductIds,
                         onToggleFavorite = viewModel::toggleFavorite,
@@ -199,6 +213,7 @@ fun ChocolateStoreApp(modifier: Modifier = Modifier) {
                     subtotalsCents = uiState.orderSubtotalsCents,
                     totalCents = uiState.orderTotalCents,
                     message = uiState.orderMessage,
+                    reservingProductIds = uiState.reservingProductIds,
                     onIncrease = viewModel::addProductToOrder,
                     onDecrease = viewModel::decreaseProduct,
                     onRemove = viewModel::removeProduct,

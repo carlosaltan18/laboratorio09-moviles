@@ -42,7 +42,11 @@ fun ChocolateDetailScreen(
     quantityInOrder: Int,
     orderUnitCount: Int,
     orderMessage: String?,
+    isReserving: Boolean,
+    isConcurrencyTesting: Boolean,
+    concurrencyTestResult: String?,
     onAddToOrder: () -> Unit,
+    onConcurrencyTest: () -> Unit,
     onOrderClick: () -> Unit,
     onToggleFavorite: (String) -> Unit,
     onViewProfile: (String) -> Unit,
@@ -81,8 +85,19 @@ fun ChocolateDetailScreen(
             Text(chocolate.priceCents.toQuetzales(), style = MaterialTheme.typography.titleMedium)
             Text(chocolate.description, style = MaterialTheme.typography.bodyMedium)
 
-            Text("${chocolate.stock} disponibles · $quantityInOrder en el pedido")
-            Button(onClick = onAddToOrder) { Text("Agregar al pedido") }
+            Text(
+                if (chocolate.stock == 0) {
+                    "Agotado · $quantityInOrder en el pedido"
+                } else {
+                    "${chocolate.stock} disponibles · $quantityInOrder en el pedido"
+                }
+            )
+            Button(
+                onClick = onAddToOrder,
+                enabled = chocolate.stock > 0 && !isReserving
+            ) {
+                Text(if (isReserving) "Reservando…" else "Agregar al pedido")
+            }
             if (orderMessage != null) {
                 Text(
                     orderMessage,
@@ -112,6 +127,22 @@ fun ChocolateDetailScreen(
 
             TextButton(onClick = { onViewProfile(chocolate.chocolatierId) }) {
                 Text("Ver chocolatero")
+            }
+
+            Button(
+                onClick = onConcurrencyTest,
+                enabled = !isConcurrencyTesting
+            ) {
+                Text(
+                    if (isConcurrencyTesting) {
+                        "Probando reservas…"
+                    } else {
+                        "Prueba de concurrencia · 20 intentos"
+                    }
+                )
+            }
+            if (concurrencyTestResult != null) {
+                Text(concurrencyTestResult)
             }
         }
     }

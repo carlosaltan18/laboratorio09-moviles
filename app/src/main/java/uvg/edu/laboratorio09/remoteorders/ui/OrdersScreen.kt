@@ -15,7 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import uvg.edu.laboratorio09.model.toQuetzales
-import uvg.edu.laboratorio09.remote.dto.OrderDto
+import uvg.edu.laboratorio09.model.RemoteOrder
 import uvg.edu.laboratorio09.remoteorders.OrdersUiState
 
 @Composable
@@ -60,7 +60,7 @@ fun OrdersScreen(
 
 @Composable
 private fun OrderSummaryCard(
-    order: OrderDto,
+    order: RemoteOrder,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {

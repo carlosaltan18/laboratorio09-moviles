@@ -34,7 +34,7 @@ class CatalogPreferencesTest {
 
     @Test
     fun viewModelWritesCatalogSortToDataStore() = runBlocking {
-        StoreViewModel(application).updateCatalogSort(CatalogSort.PRICE)
+        createStoreViewModel().updateCatalogSort(CatalogSort.PRICE)
 
         val storedValue = withTimeout(5_000) {
             application.storePreferencesDataStore.data.first { preferences ->
@@ -47,7 +47,7 @@ class CatalogPreferencesTest {
 
     @Test
     fun newViewModelRestoresPersistedSortAndAppliesItToCatalog() = runBlocking {
-        val firstViewModel = StoreViewModel(application)
+        val firstViewModel = createStoreViewModel()
         firstViewModel.updateCatalogSort(CatalogSort.NAME)
         withTimeout(5_000) {
             application.storePreferencesDataStore.data.first { preferences ->
@@ -56,11 +56,24 @@ class CatalogPreferencesTest {
         }
 
         val restoredState = withTimeout(5_000) {
-            StoreViewModel(application).uiState.first { it.catalogSort == CatalogSort.NAME }
+            createStoreViewModel().uiState.first { it.catalogSort == CatalogSort.NAME }
         }
         val names = restoredState.filteredProducts.map { it.name.lowercase() }
 
         assertEquals(CatalogSort.NAME, restoredState.catalogSort)
         assertTrue(names.zipWithNext().all { (first, second) -> first <= second })
+    }
+
+    private fun createStoreViewModel(): StoreViewModel {
+        val container = (application as StoreApplication).container
+        return StoreViewModel(
+            authenticationRepository = container.authenticationRepository,
+            productRepository = container.productRepository,
+            favoriteRepository = container.favoriteRepository,
+            cartRepository = container.cartRepository,
+            catalogPreferencesRepository = container.catalogPreferencesRepository,
+            remoteOrderRepository = container.remoteOrderRepository,
+            chocolatierRepository = container.chocolatierRepository
+        )
     }
 }
